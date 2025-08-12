@@ -1,0 +1,52 @@
+#pragma once
+#include "Object.h"
+
+struct MeshInfos
+{
+    MeshInfos() {}
+    MeshInfos(std::string _name, std::string _meshPath) : name(_name), meshPath(_meshPath) {}
+
+    std::string name;
+    std::string meshPath;
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(MeshInfos, name, meshPath)
+
+inline std::vector<MeshInfos> AvailableMeshes;
+
+class Mesh : public Object
+{
+public:
+    Mesh(std::string _name, MeshInfos _meshInfos = MeshInfos(), FVector _location = { 0.f, 0.f, 0.f }, FRotator _rotation = { 0, 0, 0 }, float _scale = 1.f) {
+        objectType = ObjectType::Mesh;
+        name = _name;
+        location = _location;
+        rotation = _rotation;
+        scale = _scale;
+		meshInfos = _meshInfos;
+    }
+    ~Mesh() {}
+
+	bool IsSpawned() const;
+	bool HasCollisionMesh() const;
+	bool IsMeshPathEmpty() const;
+
+	void EnableCollisions();
+	void DisableCollisions();
+	void EnablePhysics();
+	void DisablePhysics();
+	void SetLocation(const FVector& _newLocation);
+	void SetRotation(const FRotator& _newRotation);
+	void SetScale3D(const FVector& _newScale3D);
+
+	std::shared_ptr<Object> Clone() override {
+		std::shared_ptr<Mesh> clonedMesh = std::make_shared<Mesh>(*this);
+		clonedMesh->instance = nullptr;
+		return clonedMesh;
+	}
+
+    MeshInfos meshInfos;
+    AKActor* instance = nullptr;
+	bool enableCollisions = false;
+	bool enablePhysics = false;
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Mesh, meshInfos)
