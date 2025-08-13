@@ -216,6 +216,7 @@
     <ClInclude Include="RLSDK\SDK_HEADERS\XAudio2_parameters.hpp" />
     <ClInclude Include="RLSDK\SDK_HEADERS\XAudio2_structs.hpp" />
     <ClInclude Include="RLSDK\Utils.hpp" />
+    <ClInclude Include="Timer.h" />
     <ClInclude Include="TriggerFunctions.h" />
     <ClInclude Include="TriggerVolume.h" />
     <ClInclude Include="version.h" />

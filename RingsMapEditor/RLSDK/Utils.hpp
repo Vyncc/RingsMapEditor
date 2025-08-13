@@ -84,6 +84,29 @@ U* GetInstanceOf(std::string keyword)
 
 // Get the most current/active instance of a class. Example: UEngine* engine = GetInstanceOf<UEngine>();
 template<class U>
+U* GetInstanceOfByFullName(std::string exactFullName)
+{
+	UClass* baseClass = (UClass*)U::StaticClass();
+
+	for (UObject* uObject : *UObject::GObjObjects())
+	{
+		if (uObject)
+		{
+			if (uObject->GetFullName() == exactFullName)
+			{
+				if (uObject->IsA(baseClass))
+				{
+					return (U*)uObject;
+				}
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+// Get the most current/active instance of a class. Example: UEngine* engine = GetInstanceOf<UEngine>();
+template<class U>
 TArray<U*> GetAllInstancesOf(std::string keyword)
 {
 	TArray<U*> objectInstances;

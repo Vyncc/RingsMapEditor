@@ -16,6 +16,31 @@ void RingsMapEditor::RenderSettings()
 
 void RingsMapEditor::RenderWindow()
 {
+	RenderSaveConfigPopup();
+	RenderLoadConfigPopup();
+
+	if (ImGui::Button("Save", ImVec2(75.f, 20.f)))
+	{
+		ImGui::OpenPopup("Save Config");
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Load", ImVec2(75.f, 20.f)))
+	{
+		ImGui::OpenPopup("Load Config");
+	}
+
+	if (ImGui::Button("Start Editor Mode", ImVec2(120.f, 25.f)))
+	{
+		StartEditorMode();
+	}
+
+	ImGui::SameLine();
+
+	if (ImGui::Button("Start Race Mode", ImVec2(120.f, 25.f)))
+	{
+		StartRaceMode();
+	}
+
 	if (ImGui::BeginChild("##Objects", ImVec2(250, 0), true))
 	{
 		CustomWidget::CenterNexIMGUItItem(ImGui::CalcTextSize("Objects").x);
@@ -259,6 +284,22 @@ void RingsMapEditor::RenderMeshProperties(Mesh& _mesh)
 					_mesh.DisablePhysics();
 				});
 		}
+
+		if (ImGui::Checkbox("Enable Sticky Walls", &_mesh.enableStickyWalls))
+		{
+			gameWrapper->Execute([this, &_mesh](GameWrapper* gw) {
+				if (_mesh.enableStickyWalls)
+					_mesh.EnableStickyWalls();
+				else
+					_mesh.DisableStickyWalls();
+				});
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::BeginTooltip();
+			ImGui::Text("Enable this if you want the car to be able to drive on the object");
+			ImGui::EndTooltip();
+		}
 	}
 }
 
@@ -282,11 +323,11 @@ void RingsMapEditor::RenderTriggerVolumeProperties(TriggerVolume& _volume)
 	std::string selectedFunction = (_volume.onTouchCallback ? _volume.onTouchCallback->name : "");
 	if (ImGui::BeginCombo("On Touch Event", selectedFunction.c_str()))
 	{
-		for (std::shared_ptr<TriggerFunction>& func : triggerFunctions)
+		for (auto& func : triggerFunctionsMap)
 		{
-			if (ImGui::Selectable(func->name.c_str()))
+			if (ImGui::Selectable(func.second->name.c_str()))
 			{
-				_volume.SetOnTouchCallback(func->Clone());
+				_volume.SetOnTouchCallback(func.second->Clone());
 			}
 		}
 
@@ -305,6 +346,22 @@ void RingsMapEditor::RenderCheckpointProperties(Checkpoint& _checkpoint)
 	ImGui::SameLine();
 	ImGui::SetNextItemWidth(100.f);
 	ImGui::InputInt("##ID", &_checkpoint.id, 0, 100, ImGuiInputTextFlags_ReadOnly);
+
+	ImGui::NewLine();
+
+	std::string selectedCheckpointType = checkpointTypesMap[_checkpoint.type];
+	if (ImGui::BeginCombo("Type", selectedCheckpointType.c_str()))
+	{
+		for (const auto& checkpointType : checkpointTypesMap)
+		{
+			if (ImGui::Selectable(checkpointType.second.c_str(), (_checkpoint.type == checkpointType.first)))
+			{
+				_checkpoint.type = checkpointType.first;
+			}
+		}
+
+		ImGui::EndCombo();
+	}
 
 	ImGui::NewLine();
 
@@ -327,7 +384,6 @@ void RingsMapEditor::RenderCheckpointProperties(Checkpoint& _checkpoint)
 
 	ImGui::DragFloat3("Spawn Location", &_checkpoint.spawnLocation.X);
 	ImGui::DragInt3("Spawn Rotation", &_checkpoint.spawnRotation.Pitch);
-
 }
 
 void RingsMapEditor::RenderInputText(std::string _label, std::string* _value, ImGuiInputTextFlags _flags)
@@ -377,6 +433,79 @@ void RingsMapEditor::RenderAddObjectPopup()
 			AddObject(ObjectType::Checkpoint);
 			ImGui::CloseCurrentPopup();
 		}
+
+		CustomWidget::CenterNexIMGUItItem(100.f);
+		if (ImGui::Button("Cancel", ImVec2(100.f, 25.f)))
+		{
+			ImGui::CloseCurrentPopup();
+		}
+
+		ImGui::EndPopup();
+	}
+}
+
+void RingsMapEditor::RenderSaveConfigPopup()
+{
+	if (ImGui::BeginPopupModal("Save Config", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		static std::string fileName = "";
+		RenderInputText("File Name", &fileName);
+
+		CustomWidget::CenterNexIMGUItItem(208.f);
+
+		if (ImGui::Button("Save", ImVec2(100.f, 25.f)))
+		{
+			if (SaveConfig(fileName))
+			{
+				ImGui::CloseCurrentPopup();
+			}
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel", ImVec2(100.f, 25.f)))
+		{
+			ImGui::CloseCurrentPopup();
+		}
+
+		ImGui::EndPopup();
+	}
+}
+
+void RingsMapEditor::RenderLoadConfigPopup()
+{
+	if (ImGui::BeginPopupModal("Load Config", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		//if no configs exist, show a message
+		if (std::filesystem::is_empty(DataFolderPath))
+		{
+			ImGui::Text("No config files found");
+			CustomWidget::CenterNexIMGUItItem(100.f);
+			if (ImGui::Button("Cancel", ImVec2(100.f, 25.f)))
+			{
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::EndPopup();
+			return;
+		}
+
+		ImGui::BeginChild("##Config List", ImVec2(200, 250), true);
+
+		for (const auto& entry : std::filesystem::directory_iterator(DataFolderPath))
+		{
+			if (entry.path().extension() == ".json")
+			{
+				std::string fileName = entry.path().stem().string();
+				if (ImGui::Selectable(fileName.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick))
+				{
+					if (ImGui::IsMouseDoubleClicked(0))
+					{
+						LoadConfig(entry.path());
+						ImGui::CloseCurrentPopup();
+					}
+				}
+			}
+		}
+
+		ImGui::EndChild();
 
 		CustomWidget::CenterNexIMGUItItem(100.f);
 		if (ImGui::Button("Cancel", ImVec2(100.f, 25.f)))

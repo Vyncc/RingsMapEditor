@@ -7,7 +7,9 @@
 #include "nlohmann/json.hpp"
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(FVector, X, Y, Z)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Vector, X, Y, Z)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(FRotator, Pitch, Yaw, Roll)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Rotator, Pitch, Yaw, Roll)
 
 enum class ObjectType : uint8_t
 {
@@ -31,6 +33,7 @@ public:
 
 	virtual ~Object() {}
 
+    virtual nlohmann::json to_json() const = 0;
     virtual std::shared_ptr<Object> Clone() = 0;
 
 	Vector GetVectorLocation() const {
@@ -47,4 +50,3 @@ public:
     FRotator rotation;
     float scale = 1.0f;
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Object, name, location, rotation, scale)

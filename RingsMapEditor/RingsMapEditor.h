@@ -11,6 +11,13 @@ constexpr auto plugin_version = stringify(VERSION_MAJOR) "." stringify(VERSION_M
 
 #include "Mesh.h"
 #include "TriggerFunctions.h"
+#include "Timer.h"
+
+enum Mode : uint8_t
+{
+    Editor = 0,
+    Race = 1
+};
 
 
 class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
@@ -22,18 +29,37 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
     std::filesystem::path RLCookedPCConsolePath;
     std::filesystem::path MeshesPath;
 
+    bool SaveConfig(const std::string& fileName);
+    void LoadConfig(const std::filesystem::path& filePath);
+
+	Mode currentMode = Mode::Editor;
+    bool IsInEditorMode();
+	bool IsInRaceMode();
+    void StartEditorMode();
+    void StartRaceMode();
+
+
+    bool isStartingRace = false;
+
+	Timer raceTimer;
+
     std::vector<std::shared_ptr<Object>> objects;
     std::vector<std::shared_ptr<Mesh>> meshes;
     std::vector<std::shared_ptr<TriggerVolume>> triggerVolumes;
-    std::vector<std::shared_ptr<TriggerFunction>> triggerFunctions = {
-        std::make_shared<SetLocation>(),
-        std::make_shared<SetRotation>(),
-        std::make_shared<Destroy>(),
-        std::make_shared<TeleportToCheckpoint>()
+    std::map<std::string, std::shared_ptr<TriggerFunction>> triggerFunctionsMap = {
+        { "Set Location", std::make_shared<SetLocation>()},
+        { "Set Rotation", std::make_shared<SetRotation>() },
+        { "Destroy", std::make_shared<Destroy>() },
+        { "Teleport To Checkpoint", std::make_shared<TeleportToCheckpoint>() }
     };
     int selectedObjectIndex = -1;
 
-    void SetCurrentCheckpoint(std::shared_ptr<Checkpoint> _checkpoint);
+    void OnGameCreated(std::string eventName);
+    void OnGameFirstTick(std::string eventName);
+    void OnGameDestroyed(std::string eventName);
+    void OnCarSpawn(CarWrapper caller, void* params, std::string eventName);
+
+    bool SetCurrentCheckpoint(std::shared_ptr<Checkpoint> _checkpoint);
 
     std::shared_ptr<Object> AddObject(ObjectType _objectType);
 	void SelectLastObject();
@@ -42,15 +68,22 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
 
     std::vector<MeshInfos> GetAvailableMeshes();
 
+    std::shared_ptr<Object> FromJson_Object(const nlohmann::json& j);
+    std::shared_ptr<Mesh> FromJson_Mesh(const nlohmann::json& j);
+    std::shared_ptr<TriggerVolume> FromJson_TriggerVolume(const nlohmann::json& j);
+    std::shared_ptr<Checkpoint> FromJson_Checkpoint(const nlohmann::json& j);
+
 
 	//Boilerplate
 	void onLoad() override;
 	//void onUnload() override; // Uncomment and implement if you need a unload method
 
     void CheckTriggerVolumes();
+    void CheckCheckpoints();
     void OnTick(std::string eventName);
     void RenderTriggerVolumes(CanvasWrapper canvas);
     void RenderCheckpoints(CanvasWrapper canvas);
+	void RenderTimer(CanvasWrapper canvas);
     void RenderCanvas(CanvasWrapper canvas);
 
 
@@ -63,6 +96,7 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
     void SetActorScale3D(AActor* _actor, const FVector& _newScale3D);
     void SpawnMesh(Mesh& _mesh);
     void DestroyMesh(Mesh& _mesh);
+    void DestroyAllMeshes();
     void RemoveObject(int objectIndex);
 
     bool IsInGame();
@@ -74,6 +108,8 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
     void RenderInputText(std::string _label, std::string* _value, ImGuiInputTextFlags _flags = 0);
     std::shared_ptr<Object> CopyObject(Object& _object);
     void RenderAddObjectPopup();
+    void RenderSaveConfigPopup();
+    void RenderLoadConfigPopup();
 
 public:
 	void RenderSettings() override; // Uncomment if you wanna render your own tab in the settings menu

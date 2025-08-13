@@ -1,6 +1,18 @@
 #pragma once
 #include "TriggerVolume.h"
 
+enum class CheckpointType : uint8_t
+{
+	Start = 0,
+	Mid = 1,
+	End = 2
+};
+
+inline std::map<CheckpointType, std::string> checkpointTypesMap = {
+    { CheckpointType::Start, "Start" },
+    { CheckpointType::Mid, "Mid" },
+    { CheckpointType::End, "End" }
+};
 
 class Checkpoint : public TriggerVolume
 {
@@ -50,7 +62,43 @@ public:
         return Vector{ location.X + spawnLocation.X, location.Y + spawnLocation.Y, location.Z + spawnLocation.Z };
     }
 
+	bool IsStartCheckpoint() const {
+		return type == CheckpointType::Start;
+	}
+
+	bool IsMidCheckpoint() const {
+		return type == CheckpointType::Mid;
+	}
+
+	bool IsEndCheckpoint() const {
+		return type == CheckpointType::End;
+	}
+
+    nlohmann::json to_json() const override {
+        nlohmann::json triggerVolumeJson{
+            {"objectType", static_cast<uint8_t>(objectType)},
+            {"name", name},
+            {"location", location},
+            {"rotation", rotation},
+            {"scale", scale},
+            {"size", size},
+            {"vertices", vertices},
+            {"id", id},
+            {"type", static_cast<uint8_t>(type)},
+            {"spawnLocation", spawnLocation},
+            {"spawnRotation", spawnRotation},
+        };
+
+        if (onTouchCallback)
+            triggerVolumeJson["onTouchCallback"] = onTouchCallback->to_json();
+        else
+            triggerVolumeJson["onTouchCallback"] = "null";
+
+        return triggerVolumeJson;
+    }
+
 	int id = 0;
+	CheckpointType type = CheckpointType::Mid;
 	Vector spawnLocation;
 	Rotator spawnRotation;
 };

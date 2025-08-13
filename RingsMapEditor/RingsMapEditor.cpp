@@ -26,14 +26,179 @@ void RingsMapEditor::onLoad()
 	//	LOG("Your hook got called and the ball went POOF");
 	//});
 
+	gameWrapper->HookEventPost("Function TAGame.GameEvent_TA.PostBeginPlay", std::bind(&RingsMapEditor::OnGameCreated, this, std::placeholders::_1));
+	gameWrapper->HookEvent("Function TAGame.GameEvent_Soccar_TA.Destroyed", std::bind(&RingsMapEditor::OnGameDestroyed, this, std::placeholders::_1));
+
+	//gameWrapper->HookEventWithCallerPost<CarWrapper>("Function TAGame.Car_TA.PostBeginPlay", std::bind(&RingsMapEditor::OnCarSpawn, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+	gameWrapper->HookEventWithCallerPost<CarWrapper>("Function TAGame.Car_TA.OnVehicleSetup", std::bind(&RingsMapEditor::OnCarSpawn, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+
 	gameWrapper->HookEvent("Function Engine.GameViewportClient.Tick", std::bind(&RingsMapEditor::OnTick, this, std::placeholders::_1));
 	gameWrapper->RegisterDrawable(bind(&RingsMapEditor::RenderCanvas, this, std::placeholders::_1));
 }
 
-void RingsMapEditor::SetCurrentCheckpoint(std::shared_ptr<Checkpoint> _checkpoint)
+bool RingsMapEditor::SaveConfig(const std::string& fileName)
 {
-	currentCheckpoint = _checkpoint;
-	LOG("Current checkpoint set to: {} | {}", _checkpoint->id, _checkpoint->name);
+	if (fileName.empty())
+	{
+		LOG("[ERROR]File name cannot be empty!");
+		return false;
+	}
+
+	try
+	{
+		nlohmann::json objects_json = nlohmann::json::array();
+		for (const std::shared_ptr<Object>& object : objects) {
+			if (object)
+			{
+				objects_json.push_back(object->to_json());
+			}
+		}
+
+		std::filesystem::path filePath = DataFolderPath / std::string(fileName + ".json");
+		std::ofstream file = std::ofstream(filePath);
+		file << objects_json.dump(4);
+
+		LOG("Saved config successfully to: {}", filePath.string());
+		return true;
+	}
+	catch (const std::exception& e)
+	{
+		LOG("[ERROR]Failed to save config: {}", e.what());
+	}
+}
+
+void RingsMapEditor::LoadConfig(const std::filesystem::path& filePath)
+{
+	if (!std::filesystem::exists(filePath))
+	{
+		LOG("[ERROR]Config file does not exist: {}", filePath.string());
+		return;
+	}
+
+	std::ifstream file = std::ifstream(filePath);
+	if (!file.is_open())
+	{
+		LOG("[ERROR]Could not open config file: {}", filePath.string());
+		return;
+	}
+
+	objects.clear();
+
+	try
+	{
+		nlohmann::json arr;
+		file >> arr;
+		
+		for (const auto& item : arr)
+		{
+			std::shared_ptr<Object> loadedObject = FromJson_Object(item);
+			objects.push_back(loadedObject);
+
+			if (loadedObject->objectType == ObjectType::Mesh)
+				meshes.push_back(std::static_pointer_cast<Mesh>(loadedObject));
+			else if(loadedObject->objectType == ObjectType::TriggerVolume)
+				triggerVolumes.push_back(std::static_pointer_cast<TriggerVolume>(loadedObject));
+			else if(loadedObject->objectType == ObjectType::Checkpoint)
+				checkpoints.push_back(std::static_pointer_cast<Checkpoint>(loadedObject));
+		}
+
+		LOG("Loaded config successfully from: {}", filePath.string());
+	}
+	catch (const nlohmann::json::exception& e)
+	{
+		LOG("[ERROR]Failed to parse config: {}", e.what());
+	}
+}
+
+bool RingsMapEditor::IsInEditorMode()
+{
+	return currentMode == Mode::Editor;
+}
+
+bool RingsMapEditor::IsInRaceMode()
+{
+	return currentMode == Mode::Race;
+}
+
+void RingsMapEditor::StartEditorMode()
+{
+	currentMode = Mode::Editor;
+	isStartingRace = false;
+
+	gameWrapper->Execute([this](GameWrapper* gw) {
+		gw->ExecuteUnrealCommand("start C:\\Program Files\\Epic Games\\rocketleague\\TAGame\\CookedPCConsole\\mods\\RingsMapEditor\\Meshes\\ringsmapeditor.upk?Game=TAGame.GameInfo_Soccar_TA?GameTags=Freeplay");
+		});
+}
+
+void RingsMapEditor::StartRaceMode()
+{
+	currentMode = Mode::Race;
+	isStartingRace = true;
+	raceTimer.Reset();
+
+	gameWrapper->Execute([this](GameWrapper* gw) {
+		gw->ExecuteUnrealCommand("start ringsmapeditor.upk?Game=TAGame.GameInfo_Soccar_TA?GameTags=Freeplay");
+		});
+}
+
+void RingsMapEditor::OnGameCreated(std::string eventName)
+{
+	gameWrapper->HookEvent("Function TAGame.GameEvent_TA.GetPlayerHUDPosition", std::bind(&RingsMapEditor::OnGameFirstTick, this, std::placeholders::_1));
+}
+
+void RingsMapEditor::OnGameFirstTick(std::string eventName)
+{
+	gameWrapper->UnhookEvent("Function TAGame.GameEvent_TA.GetPlayerHUDPosition");
+
+	gameWrapper->SetTimeout([this](GameWrapper* gw)
+		{
+			for (std::shared_ptr<Object>& object : objects)
+			{
+				if (object->objectType == ObjectType::Mesh)
+				{
+					std::shared_ptr<Mesh> mesh = std::static_pointer_cast<Mesh>(object);
+					SpawnMesh(*mesh);
+				}
+			}
+		}, 0.1f);
+}
+
+void RingsMapEditor::OnGameDestroyed(std::string eventName)
+{
+	DestroyAllMeshes();
+}
+
+void RingsMapEditor::OnCarSpawn(CarWrapper caller, void* params, std::string eventName)
+{
+	if (!IsInRaceMode())
+		return;
+
+	if (!isStartingRace)
+		return;
+
+	if (checkpoints.empty())
+	{
+		LOG("[ERROR]No checkpoints set!");
+		return;
+	}
+
+	if (isStartingRace)
+	{
+		caller.SetLocation(checkpoints[0]->GetSpawnWorldLocation());
+		isStartingRace = false;
+	}
+}
+
+bool RingsMapEditor::SetCurrentCheckpoint(std::shared_ptr<Checkpoint> _checkpoint)
+{
+	if (currentCheckpoint != _checkpoint)
+	{
+		currentCheckpoint = _checkpoint;
+		LOG("Current checkpoint set to: {} | {}", _checkpoint->id, _checkpoint->name);
+		return true;
+	}
+
+	return false;
 }
 
 std::shared_ptr<Object> RingsMapEditor::AddObject(ObjectType _objectType)
@@ -84,7 +249,7 @@ void RingsMapEditor::SelectLastObject()
 
 void RingsMapEditor::InitPaths()
 {
-	DataFolderPath = gameWrapper->GetDataFolder() / "Ads3D";
+	DataFolderPath = gameWrapper->GetDataFolder() / "RingsMapEditor";
 	if (!std::filesystem::exists(DataFolderPath))
 	{
 		LOG("Data folder does not exist, creating: {}", DataFolderPath.string());
@@ -92,11 +257,11 @@ void RingsMapEditor::InitPaths()
 	}
 
 	std::string RLWin64_Path = std::filesystem::current_path().string();
-	RLCookedPCConsolePath = RLWin64_Path.substr(0, RLWin64_Path.length() - 14) + "TAGame\\CookedPCConsole\\mods\\Ads3D";
+	RLCookedPCConsolePath = RLWin64_Path.substr(0, RLWin64_Path.length() - 14) + "TAGame\\CookedPCConsole\\mods\\RingsMapEditor";
 	LOG("CookedPCConsole Path: {}", RLCookedPCConsolePath.string());
 	if (!std::filesystem::exists(RLCookedPCConsolePath))
 	{
-		LOG("CookedPCConsole\\mods\\Ads3D does not exist, creating: {}", RLCookedPCConsolePath.string());
+		LOG("CookedPCConsole\\mods\\RingsMapEditor does not exist, creating: {}", RLCookedPCConsolePath.string());
 		std::filesystem::create_directories(RLCookedPCConsolePath);
 	}
 
@@ -110,6 +275,9 @@ void RingsMapEditor::InitPaths()
 
 void RingsMapEditor::CheckTriggerVolumes()
 {
+	if (!IsInRaceMode())
+		return;
+
 	ServerWrapper server = gameWrapper->GetCurrentGameState();
 	if (!server) return;
 
@@ -129,6 +297,18 @@ void RingsMapEditor::CheckTriggerVolumes()
 		}
 	}
 
+}
+
+void RingsMapEditor::CheckCheckpoints()
+{
+	if (!IsInRaceMode())
+		return;
+
+	ServerWrapper server = gameWrapper->GetCurrentGameState();
+	if (!server) return;
+
+	ArrayWrapper<CarWrapper> cars = server.GetCars();
+
 	for (std::shared_ptr<Checkpoint>& checkpoint : checkpoints)
 	{
 		for (int i = 0; i < cars.Count(); i++)
@@ -138,7 +318,18 @@ void RingsMapEditor::CheckTriggerVolumes()
 
 			if (checkpoint->IsPointInside(car.GetLocation()))
 			{
-				SetCurrentCheckpoint(checkpoint);
+				if (SetCurrentCheckpoint(checkpoint))
+				{
+					if (checkpoint->IsStartCheckpoint())
+					{
+						raceTimer.Start();
+						LOG("starting timer");
+					}
+					else if (checkpoint->IsEndCheckpoint())
+					{
+						raceTimer.Stop();
+					}
+				}
 			}
 		}
 	}
@@ -146,11 +337,18 @@ void RingsMapEditor::CheckTriggerVolumes()
 
 void RingsMapEditor::OnTick(std::string eventName)
 {
+	if (!IsInRaceMode())
+		return;
+
 	CheckTriggerVolumes();
+	CheckCheckpoints();
 }
 
 void RingsMapEditor::RenderTriggerVolumes(CanvasWrapper canvas)
 {
+	if (!IsInEditorMode())
+		return;
+
 	CameraWrapper camera = gameWrapper->GetCamera();
 	if (!camera) return;
 
@@ -162,6 +360,9 @@ void RingsMapEditor::RenderTriggerVolumes(CanvasWrapper canvas)
 
 void RingsMapEditor::RenderCheckpoints(CanvasWrapper canvas)
 {
+	if (!IsInEditorMode())
+		return;
+
 	CameraWrapper camera = gameWrapper->GetCamera();
 	if (!camera) return;
 
@@ -171,17 +372,38 @@ void RingsMapEditor::RenderCheckpoints(CanvasWrapper canvas)
 	}
 }
 
+void RingsMapEditor::RenderTimer(CanvasWrapper canvas)
+{
+	if (!IsInRaceMode())
+		return;
+
+	CameraWrapper camera = gameWrapper->GetCamera();
+	if (!camera) return;
+
+	if (currentCheckpoint && currentCheckpoint->IsEndCheckpoint())
+		canvas.SetColor(255, 0, 0, 255); // Red color for end checkpoint
+	else
+		canvas.SetColor(0, 255, 0, 255); // Green color for active checkpoints
+
+	canvas.SetPosition(Vector2{ 20, 50 });
+	std::string timerText = "Time: " + std::to_string(raceTimer.GetElapsedSeconds()) + " seconds";
+	canvas.DrawString(timerText, 2.f, 2.f);
+}
+
 void RingsMapEditor::RenderCanvas(CanvasWrapper canvas)
 {
-	RenderTriggerVolumes(canvas);
-	RenderCheckpoints(canvas);
+	if (!IsInGame())
+		return;
 
-	CarWrapper localCar = gameWrapper->GetLocalCar();
-	if (!localCar) return;
-
-	Vector carLocation = localCar.GetLocation();
-	canvas.SetPosition(canvas.ProjectF(carLocation));
-	canvas.DrawBox(Vector2{ 4, 4 });
+	if (IsInEditorMode())
+	{
+		RenderTriggerVolumes(canvas);
+		RenderCheckpoints(canvas);
+	}
+	else if (IsInRaceMode())
+	{
+		RenderTimer(canvas);
+	}
 }
 
 
@@ -217,6 +439,90 @@ std::vector<MeshInfos> RingsMapEditor::GetAvailableMeshes()
 	LOG("Found {} available meshes in {}", availableMeshes.size(), MeshesPath.string());
 
 	return availableMeshes;
+}
+
+std::shared_ptr<Object> RingsMapEditor::FromJson_Object(const nlohmann::json& j)
+{
+	ObjectType objectType = static_cast<ObjectType>(j.at("objectType").get<uint8_t>());
+
+	if (objectType == ObjectType::Mesh)
+		return FromJson_Mesh(j);
+	else if(objectType == ObjectType::TriggerVolume)
+		return FromJson_TriggerVolume(j);
+	else if(objectType == ObjectType::Checkpoint)
+		return FromJson_Checkpoint(j);
+
+	throw std::runtime_error("Unknown object type: " + std::to_string(static_cast<uint8_t>(objectType)));
+}
+
+std::shared_ptr<Mesh> RingsMapEditor::FromJson_Mesh(const nlohmann::json& j)
+{
+	std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>();
+
+	mesh->objectType = static_cast<ObjectType>(j.at("objectType").get<uint8_t>());
+	mesh->name = j.at("name").get<std::string>();
+	mesh->location = j.at("location").get<FVector>();
+	mesh->rotation = j.at("rotation").get<FRotator>();
+	mesh->scale = j.at("scale").get<float>();
+	mesh->meshInfos = j.at("meshInfos").get<MeshInfos>();
+	mesh->enableCollisions = j.at("enableCollisions").get<bool>();
+	mesh->enablePhysics = j.at("enablePhysics").get<bool>();
+	mesh->enableStickyWalls = j.at("enableStickyWalls").get<bool>();
+
+	return mesh;
+}
+
+std::shared_ptr<TriggerVolume> RingsMapEditor::FromJson_TriggerVolume(const nlohmann::json& j)
+{
+	std::shared_ptr<TriggerVolume> triggerVolume = std::make_shared<TriggerVolume>();
+
+	triggerVolume->objectType = static_cast<ObjectType>(j.at("objectType").get<uint8_t>());
+	triggerVolume->name = j.at("name").get<std::string>();
+	triggerVolume->location = j.at("location").get<FVector>();
+	triggerVolume->rotation = j.at("rotation").get<FRotator>();
+	triggerVolume->scale = j.at("scale").get<float>();
+	triggerVolume->size = j.at("size").get<FVector>();
+	triggerVolume->vertices = j.at("vertices").get<std::array<FVector, 8>>();
+
+	if (j.contains("onTouchCallback") && !j["onTouchCallback"].is_null())
+	{
+		if (j["onTouchCallback"].is_object())
+		{
+			std::string touchCallBackName = j["onTouchCallback"]["name"].get<std::string>();
+			triggerVolume->SetOnTouchCallback(triggerFunctionsMap[touchCallBackName]->CloneFromJson(j["onTouchCallback"]));
+		}
+	}
+
+	return triggerVolume;
+}
+
+std::shared_ptr<Checkpoint> RingsMapEditor::FromJson_Checkpoint(const nlohmann::json& j)
+{
+	std::shared_ptr<Checkpoint> checkpoint = std::make_shared<Checkpoint>();
+
+	checkpoint->objectType = static_cast<ObjectType>(j.at("objectType").get<uint8_t>());
+	checkpoint->name = j.at("name").get<std::string>();
+	checkpoint->location = j.at("location").get<FVector>();
+	checkpoint->rotation = j.at("rotation").get<FRotator>();
+	checkpoint->scale = j.at("scale").get<float>();
+	checkpoint->size = j.at("size").get<FVector>();
+	checkpoint->vertices = j.at("vertices").get<std::array<FVector, 8>>();
+
+	if (j.contains("onTouchCallback") && !j["onTouchCallback"].is_null())
+	{
+		if (j["onTouchCallback"].is_object())
+		{
+			std::string touchCallBackName = j["onTouchCallback"]["name"].get<std::string>();
+			checkpoint->SetOnTouchCallback(triggerFunctionsMap[touchCallBackName]->CloneFromJson(j["onTouchCallback"]));
+		}
+	}
+
+	checkpoint->id = j.at("id").get<int>();
+	checkpoint->type = static_cast<CheckpointType>(j.at("type").get<uint8_t>());
+	checkpoint->spawnLocation = j.at("spawnLocation").get<Vector>();
+	checkpoint->spawnRotation = j.at("spawnRotation").get<Rotator>();
+
+	return checkpoint;
 }
 
 void RingsMapEditor::EnableCollisions(AKActor* _kActor)
@@ -329,6 +635,12 @@ void RingsMapEditor::SpawnMesh(Mesh& _mesh)
 		return;
 	}
 
+	if (_mesh.IsMeshPathEmpty())
+	{
+		LOG("[ERROR]{} : Mesh path is empty!", _mesh.name);
+		return;
+	}
+
 	UStaticMesh* loadedObject = reinterpret_cast<UStaticMesh*>(UObject::DynamicLoadObject(StringToFString(_mesh.meshInfos.meshPath), UStaticMesh::StaticClass(), 1));
 	if (!loadedObject)
 	{
@@ -353,21 +665,28 @@ void RingsMapEditor::SpawnMesh(Mesh& _mesh)
 	}
 
 	spawnedKActor->SetStaticMesh(loadedObject, FVector{ 0.f, 0.f, 0.f }, FRotator{ 0, 0, 0 }, FVector{ 1.f, 1.f, 1.f });
-	SetActorLocation(spawnedKActor, _mesh.location);
-	SetActorRotation(spawnedKActor, _mesh.rotation);
-	SetActorScale3D(spawnedKActor, FVector{ _mesh.scale, _mesh.scale, _mesh.scale });
 
 	_mesh.instance = spawnedKActor;
 
+	_mesh.SetLocation(_mesh.location);
+	_mesh.SetRotation(_mesh.rotation);
+	_mesh.SetScale3D(FVector{ _mesh.scale, _mesh.scale, _mesh.scale });
+
+
 	if (_mesh.enableCollisions)
-		EnableCollisions(spawnedKActor);
+		_mesh.EnableCollisions();
 	else
-		DisableCollisions(spawnedKActor);
+		_mesh.DisableCollisions();
 
 	if (_mesh.enablePhysics)
-		EnablePhysics(spawnedKActor);
+		_mesh.EnablePhysics();
 	else
-		DisablePhysics(spawnedKActor);
+		_mesh.DisablePhysics();
+
+	if (_mesh.enableStickyWalls)
+		_mesh.EnableStickyWalls();
+	else
+		_mesh.DisableStickyWalls();
 
 	LOG("Spawned object successfully : {}", _mesh.name);
 }
@@ -381,10 +700,17 @@ void RingsMapEditor::DestroyMesh(Mesh& _mesh)
 	}
 }
 
+void RingsMapEditor::DestroyAllMeshes()
+{
+	for (std::shared_ptr<Mesh>& mesh : meshes)
+	{
+		DestroyMesh(*mesh);
+	}
+}
+
 void RingsMapEditor::RemoveObject(int objectIndex)
 {
 	std::shared_ptr<Object> selectedObject = objects[objectIndex];
-	//DestroyMesh(objects[objectIndex]);
 
 	if (selectedObject->objectType == ObjectType::Mesh)
 	{

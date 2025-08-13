@@ -422,6 +422,9 @@
     <ClInclude Include="TriggerFunctions.h">
       <Filter>Plugin\header</Filter>
     </ClInclude>
+    <ClInclude Include="Timer.h">
+      <Filter>Plugin\header</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="RingsMapEditor.rc">

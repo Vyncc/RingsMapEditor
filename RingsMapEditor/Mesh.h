@@ -16,6 +16,15 @@ inline std::vector<MeshInfos> AvailableMeshes;
 class Mesh : public Object
 {
 public:
+    Mesh() {
+        objectType = ObjectType::Mesh;
+        name = "Mesh";
+        location = { 0.f, 0.f, 0.f };
+        rotation = { 0, 0, 0 };
+        scale = 1.f;
+		meshInfos = MeshInfos();
+    }
+
     Mesh(std::string _name, MeshInfos _meshInfos = MeshInfos(), FVector _location = { 0.f, 0.f, 0.f }, FRotator _rotation = { 0, 0, 0 }, float _scale = 1.f) {
         objectType = ObjectType::Mesh;
         name = _name;
@@ -34,9 +43,27 @@ public:
 	void DisableCollisions();
 	void EnablePhysics();
 	void DisablePhysics();
+    void EnableStickyWalls();
+    void DisableStickyWalls();
 	void SetLocation(const FVector& _newLocation);
 	void SetRotation(const FRotator& _newRotation);
 	void SetScale3D(const FVector& _newScale3D);
+
+    static UPhysicalMaterial* GetStickyWallsPhysMaterial();
+
+    nlohmann::json to_json() const override {
+        return nlohmann::json {
+            {"objectType", static_cast<uint8_t>(objectType)},
+            {"name", name},
+            {"location", location},
+            {"rotation", rotation},
+            {"scale", scale},
+            {"meshInfos", meshInfos},
+            {"enableCollisions", enableCollisions},
+            {"enablePhysics", enablePhysics},
+            {"enableStickyWalls", enableStickyWalls},
+        };
+    }
 
 	std::shared_ptr<Object> Clone() override {
 		std::shared_ptr<Mesh> clonedMesh = std::make_shared<Mesh>(*this);
@@ -48,5 +75,5 @@ public:
     AKActor* instance = nullptr;
 	bool enableCollisions = false;
 	bool enablePhysics = false;
+    bool enableStickyWalls = false;
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Mesh, meshInfos)

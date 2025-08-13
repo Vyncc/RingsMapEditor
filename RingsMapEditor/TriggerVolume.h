@@ -174,27 +174,6 @@ private:
     }
 };
 
-#define PARAMETERS_IMPL_VECTOR(class_name, parameter_vector, parameter_label) \
-void RenderParameters() override { \
-    ImGui::Text(parameter_label); \
-    ImGui::SameLine(); \
-\
-    float inputFloatWidth = 70.f; \
-    ImGui::SetNextItemWidth(inputFloatWidth); \
-    ImGui::InputFloat("X", &parameter_vector.X); \
-    ImGui::SameLine(); \
-    ImGui::SetNextItemWidth(inputFloatWidth); \
-    ImGui::InputFloat("Y", &parameter_vector.Y); \
-    ImGui::SameLine(); \
-    ImGui::SetNextItemWidth(inputFloatWidth); \
-    ImGui::InputFloat("Z", &parameter_vector.Z); \
-} \
-
-#define TriggerFunction_Clone(class_name) \
-std::shared_ptr<TriggerFunction> Clone() override { \
-        return std::make_shared<class_name>(*this); \
-} \
-
 class TriggerFunction
 {
 public:
@@ -203,8 +182,10 @@ public:
 
     virtual void Execute(ActorWrapper actor) = 0;
 
+    virtual nlohmann::json to_json() const = 0;
     virtual void RenderParameters() = 0; // Render parameters in ImGui
     virtual std::shared_ptr<TriggerFunction> Clone() = 0;
+    virtual std::shared_ptr<TriggerFunction> CloneFromJson(const nlohmann::json& j) = 0;
 
     std::string name;
     std::string description;
@@ -232,6 +213,25 @@ public:
 
     void SetOnTouchCallback(std::shared_ptr<TriggerFunction> callback) {
         onTouchCallback = callback;
+    }
+
+    virtual nlohmann::json to_json() const override {
+        nlohmann::json triggerVolumeJson{
+            {"objectType", static_cast<uint8_t>(objectType)},
+            {"name", name},
+            {"location", location},
+            {"rotation", rotation},
+            {"scale", scale},
+            {"size", size},
+            {"vertices", vertices}
+        };
+
+        if (onTouchCallback)
+            triggerVolumeJson["onTouchCallback"] = onTouchCallback->to_json();
+        else
+            triggerVolumeJson["onTouchCallback"] = nullptr;
+
+        return triggerVolumeJson;
     }
 
 	std::shared_ptr<Object> Clone() override {

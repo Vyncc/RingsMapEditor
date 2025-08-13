@@ -92,6 +92,53 @@ void Mesh::DisablePhysics()
 	instance->SetPhysics(EPhysics::PHYS_SoftBody);
 }
 
+void Mesh::EnableStickyWalls()
+{
+	enableStickyWalls = true;
+
+	if (!IsSpawned())
+	{
+		LOG("[ERROR]{} instance is null!", name);
+		return;
+	}
+
+	UStaticMeshComponent* collisionComp = instance->StaticMeshComponent;
+	if (!collisionComp)
+	{
+		LOG("[ERROR]Collision component is null!");
+		return;
+	}
+
+	UPhysicalMaterial* stickyWalls = GetStickyWallsPhysMaterial();
+	if (!stickyWalls)
+	{
+		LOG("[ERROR]Couldn't find sticky walls!");
+		return;
+	}
+
+	collisionComp->SetPhysMaterialOverride(stickyWalls);
+}
+
+void Mesh::DisableStickyWalls()
+{
+	enableStickyWalls = false;
+
+	if (!IsSpawned())
+	{
+		LOG("[ERROR]{} instance is null!", name);
+		return;
+	}
+
+	UStaticMeshComponent* collisionComp = instance->StaticMeshComponent;
+	if (!collisionComp)
+	{
+		LOG("[ERROR]Collision component is null!");
+		return;
+	}
+
+	collisionComp->SetPhysMaterialOverride(nullptr);
+}
+
 void Mesh::SetLocation(const FVector& _newLocation)
 {
 	location = _newLocation;
@@ -148,4 +195,9 @@ void Mesh::SetScale3D(const FVector& _newScale3D)
 	{
 		collisionComp->SetScale3D(_newScale3D);
 	}
+}
+
+UPhysicalMaterial* Mesh::GetStickyWallsPhysMaterial()
+{
+	return GetInstanceOfByFullName<UPhysicalMaterial>("PhysicalMaterial PhysicalMaterials.Collision_Sticky");
 }
