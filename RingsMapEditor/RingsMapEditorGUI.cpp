@@ -97,14 +97,14 @@ void RingsMapEditor::RenderWindow()
 
 		if (selectedObjectIndex < objects.size())
 		{
-			RenderObjectProperties(objects[selectedObjectIndex]);
+			RenderProperties_Object(objects[selectedObjectIndex]);
 		}
 
 		ImGui::EndChild();
 	}
 }
 
-void RingsMapEditor::RenderObjectProperties(std::shared_ptr<Object>& _object)
+void RingsMapEditor::RenderProperties_Object(std::shared_ptr<Object>& _object)
 {
 	RenderInputText("Name", &_object->name);
 
@@ -112,15 +112,15 @@ void RingsMapEditor::RenderObjectProperties(std::shared_ptr<Object>& _object)
 
 	if (_object->objectType == ObjectType::Mesh)
 	{
-		RenderMeshProperties(*std::static_pointer_cast<Mesh>(_object));
+		RenderProperties_Mesh(*std::static_pointer_cast<Mesh>(_object));
 	}
 	else if (_object->objectType == ObjectType::TriggerVolume)
 	{
-		RenderTriggerVolumeProperties(*std::static_pointer_cast<TriggerVolume>(_object));
+		RenderProperties_TriggerVolume(reinterpret_cast<std::shared_ptr<TriggerVolume>&>(_object)); //passing it by reference
 	}
 	else if (_object->objectType == ObjectType::Checkpoint)
 	{
-		RenderCheckpointProperties(*std::static_pointer_cast<Checkpoint>(_object));
+		RenderProperties_Checkpoint(*std::static_pointer_cast<Checkpoint>(_object));
 	}
 	else
 	{
@@ -145,7 +145,7 @@ void RingsMapEditor::RenderObjectProperties(std::shared_ptr<Object>& _object)
 	}
 }
 
-void RingsMapEditor::RenderMeshProperties(Mesh& _mesh)
+void RingsMapEditor::RenderProperties_Mesh(Mesh& _mesh)
 {
 	ImGui::Text("Mesh");
 	ImGui::SameLine();
@@ -290,8 +290,8 @@ void RingsMapEditor::RenderMeshProperties(Mesh& _mesh)
 			gameWrapper->Execute([this, &_mesh](GameWrapper* gw) {
 				if (_mesh.enableStickyWalls)
 					_mesh.EnableStickyWalls();
-				else
-					_mesh.DisableStickyWalls();
+				/*else
+					_mesh.DisableStickyWalls();*/
 				});
 		}
 		if (ImGui::IsItemHovered())
@@ -303,7 +303,44 @@ void RingsMapEditor::RenderMeshProperties(Mesh& _mesh)
 	}
 }
 
-void RingsMapEditor::RenderTriggerVolumeProperties(TriggerVolume& _volume)
+void RingsMapEditor::RenderProperties_TriggerVolume(std::shared_ptr<TriggerVolume>& _volume)
+{
+	ImGui::Text("Type");
+	ImGui::SameLine();
+	std::string selectedTriggerVolumeType = triggerVolumeTypesMap[_volume->triggerVolumeType];
+	if (ImGui::BeginCombo("##Trigger Volume Type", selectedTriggerVolumeType.c_str()))
+	{
+		for (const auto& type : triggerVolumeTypesMap)
+		{
+			bool isSelected = (type.first == _volume->triggerVolumeType);
+			if (ImGui::Selectable(type.second.c_str(), isSelected))
+			{
+				if (!isSelected)
+				{
+					switch (type.first)
+					{
+					case TriggerVolumeType::Box:
+						_volume = std::make_shared<TriggerVolume_Box>(*_volume);
+						break;
+					default:
+						break;
+					}
+				}
+			}
+		}
+
+		ImGui::EndCombo();
+	}
+
+	ImGui::NewLine();
+
+	if (_volume->triggerVolumeType == TriggerVolumeType::Box)
+		RenderProperties_TriggerVolume_Box(*std::static_pointer_cast<TriggerVolume_Box>(_volume));
+	/*else if(_volume->triggerVolumeType == TriggerVolumeType::Cylinder)
+		RenderProperties_TriggerVolume_Box(*std::static_pointer_cast<TriggerVolume_Box>(_volume));*/
+}
+
+void RingsMapEditor::RenderProperties_TriggerVolume_Box(TriggerVolume_Box& _volume)
 {
 	if (ImGui::DragFloat3("Location", &_volume.location.X))
 	{
@@ -340,7 +377,7 @@ void RingsMapEditor::RenderTriggerVolumeProperties(TriggerVolume& _volume)
 	}
 }
 
-void RingsMapEditor::RenderCheckpointProperties(Checkpoint& _checkpoint)
+void RingsMapEditor::RenderProperties_Checkpoint(Checkpoint& _checkpoint)
 {
 	ImGui::Text("ID");
 	ImGui::SameLine();
@@ -349,14 +386,14 @@ void RingsMapEditor::RenderCheckpointProperties(Checkpoint& _checkpoint)
 
 	ImGui::NewLine();
 
-	std::string selectedCheckpointType = checkpointTypesMap[_checkpoint.type];
+	std::string selectedCheckpointType = checkpointTypesMap[_checkpoint.checkpointType];
 	if (ImGui::BeginCombo("Type", selectedCheckpointType.c_str()))
 	{
 		for (const auto& checkpointType : checkpointTypesMap)
 		{
-			if (ImGui::Selectable(checkpointType.second.c_str(), (_checkpoint.type == checkpointType.first)))
+			if (ImGui::Selectable(checkpointType.second.c_str(), (_checkpoint.checkpointType == checkpointType.first)))
 			{
-				_checkpoint.type = checkpointType.first;
+				_checkpoint.checkpointType = checkpointType.first;
 			}
 		}
 
@@ -375,9 +412,9 @@ void RingsMapEditor::RenderCheckpointProperties(Checkpoint& _checkpoint)
 		_checkpoint.SetRotation(_checkpoint.rotation);
 	}
 
-	if (ImGui::DragFloat3("Size", &_checkpoint.size.X, 1.f, 0.01f, 1000.0f))
+	if (ImGui::DragFloat3("Size", &_checkpoint.triggerVolume.size.X, 1.f, 0.01f, 1000.0f))
 	{
-		_checkpoint.SetSize(_checkpoint.size);
+		_checkpoint.SetSize(_checkpoint.triggerVolume.size);
 	}
 
 	ImGui::NewLine();

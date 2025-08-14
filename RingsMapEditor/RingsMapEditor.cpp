@@ -125,8 +125,12 @@ void RingsMapEditor::StartEditorMode()
 	currentMode = Mode::Editor;
 	isStartingRace = false;
 
+	/*gameWrapper->Execute([this](GameWrapper* gw) {
+		gw->ExecuteUnrealCommand("start C:\\Program Files\\Epic Games\\rocketleague\\TAGame\\CookedPCConsole\\mods\\RingsMapEditor\\Meshes\\ringsmapeditor.upk?Game=TAGame.GameInfo_Soccar_TA?GameTags=BotsNone");
+		});*/
+
 	gameWrapper->Execute([this](GameWrapper* gw) {
-		gw->ExecuteUnrealCommand("start C:\\Program Files\\Epic Games\\rocketleague\\TAGame\\CookedPCConsole\\mods\\RingsMapEditor\\Meshes\\ringsmapeditor.upk?Game=TAGame.GameInfo_Soccar_TA?GameTags=Freeplay");
+		gw->ExecuteUnrealCommand("start EuroStadium_P?Game=TAGame.GameInfo_Soccar_TA?GameTags=BotsNone");
 		});
 }
 
@@ -136,8 +140,12 @@ void RingsMapEditor::StartRaceMode()
 	isStartingRace = true;
 	raceTimer.Reset();
 
+	/*gameWrapper->Execute([this](GameWrapper* gw) {
+		gw->ExecuteUnrealCommand("start C:\\Program Files\\Epic Games\\rocketleague\\TAGame\\CookedPCConsole\\mods\\RingsMapEditor\\Meshes\\ringsmapeditor.upk?Game=TAGame.GameInfo_Soccar_TA?GameTags=Freeplay");
+		});*/
+
 	gameWrapper->Execute([this](GameWrapper* gw) {
-		gw->ExecuteUnrealCommand("start ringsmapeditor.upk?Game=TAGame.GameInfo_Soccar_TA?GameTags=Freeplay");
+		gw->ExecuteUnrealCommand("start EuroStadium_P?Game=TAGame.GameInfo_Soccar_TA?GameTags=Freeplay");
 		});
 }
 
@@ -213,7 +221,7 @@ std::shared_ptr<Object> RingsMapEditor::AddObject(ObjectType _objectType)
 	}
 	else if (_objectType == ObjectType::TriggerVolume)
 	{
-		std::shared_ptr<TriggerVolume> newTriggerVolume = std::make_shared<TriggerVolume>();
+		std::shared_ptr<TriggerVolume_Box> newTriggerVolume = std::make_shared<TriggerVolume_Box>();
 		objects.emplace_back(newTriggerVolume);
 		triggerVolumes.emplace_back(newTriggerVolume);
 		SelectLastObject();
@@ -316,7 +324,7 @@ void RingsMapEditor::CheckCheckpoints()
 			CarWrapper car = cars.Get(i);
 			if (!car) continue;
 
-			if (checkpoint->IsPointInside(car.GetLocation()))
+			if (checkpoint->triggerVolume.IsPointInside(car.GetLocation()))
 			{
 				if (SetCurrentCheckpoint(checkpoint))
 				{
@@ -474,26 +482,47 @@ std::shared_ptr<Mesh> RingsMapEditor::FromJson_Mesh(const nlohmann::json& j)
 
 std::shared_ptr<TriggerVolume> RingsMapEditor::FromJson_TriggerVolume(const nlohmann::json& j)
 {
-	std::shared_ptr<TriggerVolume> triggerVolume = std::make_shared<TriggerVolume>();
+	TriggerVolumeType triggerVolumeType = static_cast<TriggerVolumeType>(j.at("triggerVolumeType").get<uint8_t>());
 
-	triggerVolume->objectType = static_cast<ObjectType>(j.at("objectType").get<uint8_t>());
-	triggerVolume->name = j.at("name").get<std::string>();
-	triggerVolume->location = j.at("location").get<FVector>();
-	triggerVolume->rotation = j.at("rotation").get<FRotator>();
-	triggerVolume->scale = j.at("scale").get<float>();
-	triggerVolume->size = j.at("size").get<FVector>();
-	triggerVolume->vertices = j.at("vertices").get<std::array<FVector, 8>>();
+	if (triggerVolumeType == TriggerVolumeType::Box)
+		return FromJson_TriggerVolume_Box(j);
+	/*else if (triggerVolumeType == TriggerVolumeType::Cylinder)
+		return FromJson_TriggerVolume(j);*/
+
+	throw std::runtime_error("Unknown trigger volume type: " + std::to_string(static_cast<uint8_t>(triggerVolumeType)));
+}
+
+std::shared_ptr<TriggerVolume_Box> RingsMapEditor::FromJson_TriggerVolume_Box(const nlohmann::json& j)
+{
+	std::shared_ptr<TriggerVolume_Box> triggerVolumeBox = std::make_shared<TriggerVolume_Box>();
+
+	triggerVolumeBox->objectType = static_cast<ObjectType>(j.at("objectType").get<uint8_t>());
+	triggerVolumeBox->name = j.at("name").get<std::string>();
+	triggerVolumeBox->location = j.at("location").get<FVector>();
+	triggerVolumeBox->rotation = j.at("rotation").get<FRotator>();
+	triggerVolumeBox->scale = j.at("scale").get<float>();
+
+	triggerVolumeBox->triggerVolumeType = static_cast<TriggerVolumeType>(j.at("triggerVolumeType").get<uint8_t>());
 
 	if (j.contains("onTouchCallback") && !j["onTouchCallback"].is_null())
 	{
 		if (j["onTouchCallback"].is_object())
 		{
 			std::string touchCallBackName = j["onTouchCallback"]["name"].get<std::string>();
-			triggerVolume->SetOnTouchCallback(triggerFunctionsMap[touchCallBackName]->CloneFromJson(j["onTouchCallback"]));
+			triggerVolumeBox->SetOnTouchCallback(triggerFunctionsMap[touchCallBackName]->CloneFromJson(j["onTouchCallback"]));
 		}
 	}
 
-	return triggerVolume;
+	triggerVolumeBox->size = j.at("size").get<FVector>();
+	LOG("{} {} {}", triggerVolumeBox->size.X, triggerVolumeBox->size.Y, triggerVolumeBox->size.Z);
+	triggerVolumeBox->vertices = j.at("vertices").get<std::array<FVector, 8>>();
+
+	return triggerVolumeBox;
+}
+
+std::shared_ptr<TriggerVolume> RingsMapEditor::FromJson_TriggerVolume_Cylinder(const nlohmann::json& j)
+{
+	return std::shared_ptr<TriggerVolume>();
 }
 
 std::shared_ptr<Checkpoint> RingsMapEditor::FromJson_Checkpoint(const nlohmann::json& j)
@@ -505,20 +534,10 @@ std::shared_ptr<Checkpoint> RingsMapEditor::FromJson_Checkpoint(const nlohmann::
 	checkpoint->location = j.at("location").get<FVector>();
 	checkpoint->rotation = j.at("rotation").get<FRotator>();
 	checkpoint->scale = j.at("scale").get<float>();
-	checkpoint->size = j.at("size").get<FVector>();
-	checkpoint->vertices = j.at("vertices").get<std::array<FVector, 8>>();
-
-	if (j.contains("onTouchCallback") && !j["onTouchCallback"].is_null())
-	{
-		if (j["onTouchCallback"].is_object())
-		{
-			std::string touchCallBackName = j["onTouchCallback"]["name"].get<std::string>();
-			checkpoint->SetOnTouchCallback(triggerFunctionsMap[touchCallBackName]->CloneFromJson(j["onTouchCallback"]));
-		}
-	}
 
 	checkpoint->id = j.at("id").get<int>();
-	checkpoint->type = static_cast<CheckpointType>(j.at("type").get<uint8_t>());
+	checkpoint->checkpointType = static_cast<CheckpointType>(j.at("checkpointType").get<uint8_t>());
+	checkpoint->triggerVolume = *FromJson_TriggerVolume_Box(j["triggerVolume"]);
 	checkpoint->spawnLocation = j.at("spawnLocation").get<Vector>();
 	checkpoint->spawnRotation = j.at("spawnRotation").get<Rotator>();
 
@@ -685,8 +704,6 @@ void RingsMapEditor::SpawnMesh(Mesh& _mesh)
 
 	if (_mesh.enableStickyWalls)
 		_mesh.EnableStickyWalls();
-	else
-		_mesh.DisableStickyWalls();
 
 	LOG("Spawned object successfully : {}", _mesh.name);
 }
@@ -722,14 +739,12 @@ void RingsMapEditor::RemoveObject(int objectIndex)
 	else if (selectedObject->objectType == ObjectType::TriggerVolume)
 	{
 		std::shared_ptr<TriggerVolume> triggerVolume = std::static_pointer_cast<TriggerVolume>(selectedObject);
-		triggerVolume->SetOnTouchCallback(nullptr); // Clear the callback to avoid dangling pointers
 		triggerVolumes.erase(std::remove(triggerVolumes.begin(), triggerVolumes.end(), triggerVolume), triggerVolumes.end());
 		LOG("Removed trigger volume: {}", triggerVolume->name);
 	}
 	else if (selectedObject->objectType == ObjectType::Checkpoint)
 	{
 		std::shared_ptr<Checkpoint> chekpoint = std::static_pointer_cast<Checkpoint>(selectedObject);
-		chekpoint->SetOnTouchCallback(nullptr); // Clear the callback to avoid dangling pointers
 		checkpoints.erase(std::remove(checkpoints.begin(), checkpoints.end(), chekpoint), checkpoints.end());
 		LOG("Removed checkpoint: {}", chekpoint->name);
 	}

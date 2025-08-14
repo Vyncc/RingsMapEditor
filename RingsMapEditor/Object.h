@@ -13,7 +13,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Rotator, Pitch, Yaw, Roll)
 
 enum class ObjectType : uint8_t
 {
-	None = 0,
+	Unknown = 0,
     Mesh = 1,
 	TriggerVolume = 2,
 	Checkpoint = 3
@@ -44,7 +44,7 @@ public:
 		return Vector{ location.X, location.Y, location.Z };
 	}
 
-	ObjectType objectType = ObjectType::None;
+	ObjectType objectType = ObjectType::Unknown;
     std::string name;
     FVector location;
     FRotator rotation;

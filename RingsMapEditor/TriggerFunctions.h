@@ -155,7 +155,9 @@ public:
     void Execute(ActorWrapper actor) override {
         if (useCurrentCheckpoint && currentCheckpoint)
         {
-            actor.SetLocation(currentCheckpoint->GetVectorLocation());
+            actor.SetLocation(currentCheckpoint->GetSpawnWorldLocation());
+            actor.SetRotation(currentCheckpoint->spawnRotation);
+            actor.SetVelocity(Vector(0.f, 0.f, 0.f));
         }
         else
         {
@@ -167,6 +169,8 @@ public:
 
 			std::shared_ptr<Checkpoint> checkpoint = checkpoints[checkpointId];
             actor.SetLocation(checkpoint->GetSpawnWorldLocation());
+            actor.SetRotation(checkpoint->spawnRotation);
+            actor.SetVelocity(Vector(0.f, 0.f, 0.f));
         }
     }
 

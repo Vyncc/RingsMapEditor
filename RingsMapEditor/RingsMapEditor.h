@@ -71,6 +71,8 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
     std::shared_ptr<Object> FromJson_Object(const nlohmann::json& j);
     std::shared_ptr<Mesh> FromJson_Mesh(const nlohmann::json& j);
     std::shared_ptr<TriggerVolume> FromJson_TriggerVolume(const nlohmann::json& j);
+    std::shared_ptr<TriggerVolume_Box> FromJson_TriggerVolume_Box(const nlohmann::json& j);
+    std::shared_ptr<TriggerVolume> FromJson_TriggerVolume_Cylinder(const nlohmann::json& j);
     std::shared_ptr<Checkpoint> FromJson_Checkpoint(const nlohmann::json& j);
 
 
@@ -101,10 +103,12 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
 
     bool IsInGame();
 
-    void RenderObjectProperties(std::shared_ptr<Object>& _object);
-	void RenderMeshProperties(Mesh& _mesh);
-    void RenderTriggerVolumeProperties(TriggerVolume& _volume);
-    void RenderCheckpointProperties(Checkpoint& _checkpoint);
+    void RenderProperties_Object(std::shared_ptr<Object>& _object);
+	void RenderProperties_Mesh(Mesh& _mesh);
+    void RenderProperties_TriggerVolume(std::shared_ptr<TriggerVolume>& _volume);
+    void RenderProperties_TriggerVolume_Box(TriggerVolume_Box& _volume);
+    //void RenderProperties_TriggerVolume_Cylinder(TriggerVolume_Box& _volume);
+    void RenderProperties_Checkpoint(Checkpoint& _checkpoint);
     void RenderInputText(std::string _label, std::string* _value, ImGuiInputTextFlags _flags = 0);
     std::shared_ptr<Object> CopyObject(Object& _object);
     void RenderAddObjectPopup();

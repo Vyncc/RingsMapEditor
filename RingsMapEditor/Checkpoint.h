@@ -14,16 +14,19 @@ inline std::map<CheckpointType, std::string> checkpointTypesMap = {
     { CheckpointType::End, "End" }
 };
 
-class Checkpoint : public TriggerVolume
+class Checkpoint : public Object
 {
 public:
-    Checkpoint() : TriggerVolume() {
+    Checkpoint() {
 		objectType = ObjectType::Checkpoint;
 		name = "Checkpoint";
+        location = FVector{ 0.f, 0.f, 0.f };
+        rotation = FRotator{ 0, 0, 0 };
+        checkpointType = CheckpointType::Mid;
 	}
 	~Checkpoint() {}
 
-	void Render(CanvasWrapper canvas, CameraWrapper camera) override {
+	void Render(CanvasWrapper canvas, CameraWrapper camera) {
         RT::Frustum frustum(canvas, camera);  // Create frustum (use default constructor or initialize as needed)
 
         // Edges of a box defined by vertex indices
@@ -39,8 +42,8 @@ public:
         // Draw each edge as a line within the frustum
         for (auto& edge : edges)
         {
-            Vector start = Vector{ vertices[edge[0]].X, vertices[edge[0]].Y, vertices[edge[0]].Z };
-            Vector end = Vector{ vertices[edge[1]].X, vertices[edge[1]].Y, vertices[edge[1]].Z };
+            Vector start = Vector{ triggerVolume.vertices[edge[0]].X, triggerVolume.vertices[edge[0]].Y, triggerVolume.vertices[edge[0]].Z };
+            Vector end = Vector{ triggerVolume.vertices[edge[1]].X, triggerVolume.vertices[edge[1]].Y, triggerVolume.vertices[edge[1]].Z };
             RT::Line line(start, end);
             line.DrawWithinFrustum(canvas, frustum);
         }
@@ -58,47 +61,61 @@ public:
         }
 	}
 
+    void SetLocation(FVector _newLocation) {
+        location = _newLocation;
+        triggerVolume.SetLocation(_newLocation);
+    }
+
+    void SetRotation(FRotator _newRotation) {
+        rotation = _newRotation;
+        triggerVolume.SetRotation(_newRotation);
+    }
+
+    void SetSize(FVector _newSize) {
+        triggerVolume.SetSize(_newSize);
+    }
+
     Vector GetSpawnWorldLocation() const {
         return Vector{ location.X + spawnLocation.X, location.Y + spawnLocation.Y, location.Z + spawnLocation.Z };
     }
 
 	bool IsStartCheckpoint() const {
-		return type == CheckpointType::Start;
+		return checkpointType == CheckpointType::Start;
 	}
 
 	bool IsMidCheckpoint() const {
-		return type == CheckpointType::Mid;
+		return checkpointType == CheckpointType::Mid;
 	}
 
 	bool IsEndCheckpoint() const {
-		return type == CheckpointType::End;
+		return checkpointType == CheckpointType::End;
 	}
 
     nlohmann::json to_json() const override {
-        nlohmann::json triggerVolumeJson{
+        return {
             {"objectType", static_cast<uint8_t>(objectType)},
             {"name", name},
             {"location", location},
             {"rotation", rotation},
             {"scale", scale},
-            {"size", size},
-            {"vertices", vertices},
             {"id", id},
-            {"type", static_cast<uint8_t>(type)},
+            {"checkpointType", static_cast<uint8_t>(checkpointType)},
+            {"triggerVolume", triggerVolume.to_json()},
             {"spawnLocation", spawnLocation},
             {"spawnRotation", spawnRotation},
         };
+    }
 
-        if (onTouchCallback)
-            triggerVolumeJson["onTouchCallback"] = onTouchCallback->to_json();
-        else
-            triggerVolumeJson["onTouchCallback"] = "null";
-
-        return triggerVolumeJson;
+    std::shared_ptr<Object> Clone() override {
+        std::shared_ptr<Checkpoint> clonedCheckpoint = std::make_shared<Checkpoint>(*this);
+        clonedCheckpoint->triggerVolume.onTouchCallback = (clonedCheckpoint->triggerVolume.onTouchCallback ? clonedCheckpoint->triggerVolume.onTouchCallback->Clone() : nullptr);
+        clonedCheckpoint->triggerVolume.UpdateVertices(); // Ensure vertices are updated after cloning
+        return clonedCheckpoint;
     }
 
 	int id = 0;
-	CheckpointType type = CheckpointType::Mid;
+	CheckpointType checkpointType = CheckpointType::Mid;
+    TriggerVolume_Box triggerVolume;
 	Vector spawnLocation;
 	Rotator spawnRotation;
 };
