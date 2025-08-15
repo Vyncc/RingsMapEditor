@@ -141,7 +141,7 @@ void Mesh::DisableStickyWalls()
 
 void Mesh::SetLocation(const FVector& _newLocation)
 {
-	location = _newLocation;
+	location = Object::FVectorToVector(_newLocation);
 
 	if (!IsSpawned())
 	{
@@ -158,9 +158,14 @@ void Mesh::SetLocation(const FVector& _newLocation)
 	}
 }
 
+void Mesh::SetLocation(const Vector& _newLocation)
+{
+	SetLocation(VectorToFVector(_newLocation));
+}
+
 void Mesh::SetRotation(const FRotator& _newRotation)
 {
-	rotation = _newRotation;
+	rotation = Object::FRotatorToRotator(_newRotation);
 
 	if (!IsSpawned())
 	{
@@ -175,6 +180,11 @@ void Mesh::SetRotation(const FRotator& _newRotation)
 	{
 		collisionComp->SetRBRotation(_newRotation, FName());
 	}
+}
+
+void Mesh::SetRotation(const Rotator& _newRotation)
+{
+	SetRotation(RotatorToFRotator(_newRotation));
 }
 
 //Not working for the collision component
@@ -195,6 +205,11 @@ void Mesh::SetScale3D(const FVector& _newScale3D)
 	{
 		collisionComp->SetScale3D(_newScale3D);
 	}
+}
+
+void Mesh::SetScale3D(const Vector& _newScale3D)
+{
+	SetScale3D(VectorToFVector(_newScale3D));
 }
 
 UPhysicalMaterial* Mesh::GetStickyWallsPhysMaterial()

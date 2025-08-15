@@ -181,7 +181,7 @@ void RingsMapEditor::RenderProperties_Mesh(Mesh& _mesh)
 		if (_mesh.instance)
 		{
 			gameWrapper->Execute([&, _mesh](GameWrapper* gw) {
-				SetActorLocation(_mesh.instance, _mesh.location);
+				//SetActorLocation(_mesh.instance, _mesh.GetFVectorLocation());
 				});
 		}
 	}
@@ -190,7 +190,7 @@ void RingsMapEditor::RenderProperties_Mesh(Mesh& _mesh)
 		if (_mesh.instance)
 		{
 			gameWrapper->Execute([&, _mesh](GameWrapper* gw) {
-				SetActorRotation(_mesh.instance, _mesh.rotation);
+				//SetActorRotation(_mesh.instance, _mesh.GetFRotatorRotation());
 				});
 		}
 	}
@@ -199,7 +199,7 @@ void RingsMapEditor::RenderProperties_Mesh(Mesh& _mesh)
 		if (_mesh.instance)
 		{
 			gameWrapper->Execute([&, _mesh](GameWrapper* gw) {
-				SetActorScale3D(_mesh.instance, FVector{ _mesh.scale, _mesh.scale, _mesh.scale });
+				//SetActorScale3D(_mesh.instance, FVector{ _mesh.scale, _mesh.scale, _mesh.scale });
 				});
 		}
 	}
@@ -317,14 +317,7 @@ void RingsMapEditor::RenderProperties_TriggerVolume(std::shared_ptr<TriggerVolum
 			{
 				if (!isSelected)
 				{
-					switch (type.first)
-					{
-					case TriggerVolumeType::Box:
-						_volume = std::make_shared<TriggerVolume_Box>(*_volume);
-						break;
-					default:
-						break;
-					}
+					ConvertTriggerVolume(_volume, type.first);
 				}
 			}
 		}
@@ -334,47 +327,55 @@ void RingsMapEditor::RenderProperties_TriggerVolume(std::shared_ptr<TriggerVolum
 
 	ImGui::NewLine();
 
-	if (_volume->triggerVolumeType == TriggerVolumeType::Box)
-		RenderProperties_TriggerVolume_Box(*std::static_pointer_cast<TriggerVolume_Box>(_volume));
-	/*else if(_volume->triggerVolumeType == TriggerVolumeType::Cylinder)
-		RenderProperties_TriggerVolume_Box(*std::static_pointer_cast<TriggerVolume_Box>(_volume));*/
-}
-
-void RingsMapEditor::RenderProperties_TriggerVolume_Box(TriggerVolume_Box& _volume)
-{
-	if (ImGui::DragFloat3("Location", &_volume.location.X))
+	if (ImGui::DragFloat3("Location", &_volume->location.X))
 	{
-		_volume.SetLocation(_volume.location);
+		_volume->SetLocation(_volume->location);
 	}
 
-	if (ImGui::DragInt3("Rotation", &_volume.rotation.Pitch))
+	if (ImGui::DragInt3("Rotation", &_volume->rotation.Pitch))
 	{
-		_volume.SetRotation(_volume.rotation);
+		_volume->SetRotation(_volume->rotation);
 	}
 
-	if (ImGui::DragFloat3("Size", &_volume.size.X, 1.f, 0.01f, 1000.0f))
-	{
-		_volume.SetSize(_volume.size);
-	}
-
-	std::string selectedFunction = (_volume.onTouchCallback ? _volume.onTouchCallback->name : "");
+	std::string selectedFunction = (_volume->onTouchCallback ? _volume->onTouchCallback->name : "");
 	if (ImGui::BeginCombo("On Touch Event", selectedFunction.c_str()))
 	{
 		for (auto& func : triggerFunctionsMap)
 		{
 			if (ImGui::Selectable(func.second->name.c_str()))
 			{
-				_volume.SetOnTouchCallback(func.second->Clone());
+				_volume->SetOnTouchCallback(func.second->Clone());
 			}
 		}
 
 		ImGui::EndCombo();
 	}
 
-	if (_volume.onTouchCallback)
+	if (_volume->onTouchCallback)
 	{
-		_volume.onTouchCallback->RenderParameters();
+		_volume->onTouchCallback->RenderParameters();
 	}
+
+	ImGui::NewLine();
+
+	if (_volume->triggerVolumeType == TriggerVolumeType::Box)
+		RenderProperties_TriggerVolume_Box(*std::static_pointer_cast<TriggerVolume_Box>(_volume));
+	else if (_volume->triggerVolumeType == TriggerVolumeType::Cylinder)
+		RenderProperties_TriggerVolume_Cylinder(*std::static_pointer_cast<TriggerVolume_Cylinder>(_volume));
+}
+
+void RingsMapEditor::RenderProperties_TriggerVolume_Box(TriggerVolume_Box& _volume)
+{
+	if (ImGui::DragFloat3("Size", &_volume.size.X, 1.f, 0.01f, 1000.0f))
+	{
+		_volume.SetSize(_volume.size);
+	}
+}
+
+void RingsMapEditor::RenderProperties_TriggerVolume_Cylinder(TriggerVolume_Cylinder& _volume)
+{
+	ImGui::DragFloat("Radius", &_volume.radius, 0.5f, 0.01f, 1000.0f);
+	ImGui::DragFloat("Height", &_volume.height, 0.5f, 0.01f, 1000.0f);
 }
 
 void RingsMapEditor::RenderProperties_Checkpoint(Checkpoint& _checkpoint)

@@ -149,6 +149,26 @@ void RingsMapEditor::StartRaceMode()
 		});
 }
 
+void RingsMapEditor::ConvertTriggerVolume(std::shared_ptr<TriggerVolume>& _triggerVolume, TriggerVolumeType _triggerVolumeType)
+{
+	std::shared_ptr<TriggerVolume> oldPtr = _triggerVolume;
+
+	if (_triggerVolumeType == TriggerVolumeType::Box)
+	{
+		_triggerVolume = std::make_shared<TriggerVolume_Box>(*_triggerVolume);
+	}
+	else if (_triggerVolumeType == TriggerVolumeType::Cylinder)
+	{
+		_triggerVolume = std::make_shared<TriggerVolume_Cylinder>(*_triggerVolume);
+	}
+
+	auto it = std::find(triggerVolumes.begin(), triggerVolumes.end(), oldPtr);
+	if (it != triggerVolumes.end())
+	{
+		*it = _triggerVolume; // point to new object
+	}
+}
+
 void RingsMapEditor::OnGameCreated(std::string eventName)
 {
 	gameWrapper->HookEvent("Function TAGame.GameEvent_TA.GetPlayerHUDPosition", std::bind(&RingsMapEditor::OnGameFirstTick, this, std::placeholders::_1));
@@ -469,8 +489,8 @@ std::shared_ptr<Mesh> RingsMapEditor::FromJson_Mesh(const nlohmann::json& j)
 
 	mesh->objectType = static_cast<ObjectType>(j.at("objectType").get<uint8_t>());
 	mesh->name = j.at("name").get<std::string>();
-	mesh->location = j.at("location").get<FVector>();
-	mesh->rotation = j.at("rotation").get<FRotator>();
+	mesh->location = j.at("location").get<Vector>();
+	mesh->rotation = j.at("rotation").get<Rotator>();
 	mesh->scale = j.at("scale").get<float>();
 	mesh->meshInfos = j.at("meshInfos").get<MeshInfos>();
 	mesh->enableCollisions = j.at("enableCollisions").get<bool>();
@@ -498,8 +518,8 @@ std::shared_ptr<TriggerVolume_Box> RingsMapEditor::FromJson_TriggerVolume_Box(co
 
 	triggerVolumeBox->objectType = static_cast<ObjectType>(j.at("objectType").get<uint8_t>());
 	triggerVolumeBox->name = j.at("name").get<std::string>();
-	triggerVolumeBox->location = j.at("location").get<FVector>();
-	triggerVolumeBox->rotation = j.at("rotation").get<FRotator>();
+	triggerVolumeBox->location = j.at("location").get<Vector>();
+	triggerVolumeBox->rotation = j.at("rotation").get<Rotator>();
 	triggerVolumeBox->scale = j.at("scale").get<float>();
 
 	triggerVolumeBox->triggerVolumeType = static_cast<TriggerVolumeType>(j.at("triggerVolumeType").get<uint8_t>());
@@ -513,9 +533,9 @@ std::shared_ptr<TriggerVolume_Box> RingsMapEditor::FromJson_TriggerVolume_Box(co
 		}
 	}
 
-	triggerVolumeBox->size = j.at("size").get<FVector>();
+	triggerVolumeBox->size = j.at("size").get<Vector>();
 	LOG("{} {} {}", triggerVolumeBox->size.X, triggerVolumeBox->size.Y, triggerVolumeBox->size.Z);
-	triggerVolumeBox->vertices = j.at("vertices").get<std::array<FVector, 8>>();
+	triggerVolumeBox->vertices = j.at("vertices").get<std::array<Vector, 8>>();
 
 	return triggerVolumeBox;
 }
@@ -531,8 +551,8 @@ std::shared_ptr<Checkpoint> RingsMapEditor::FromJson_Checkpoint(const nlohmann::
 
 	checkpoint->objectType = static_cast<ObjectType>(j.at("objectType").get<uint8_t>());
 	checkpoint->name = j.at("name").get<std::string>();
-	checkpoint->location = j.at("location").get<FVector>();
-	checkpoint->rotation = j.at("rotation").get<FRotator>();
+	checkpoint->location = j.at("location").get<Vector>();
+	checkpoint->rotation = j.at("rotation").get<Rotator>();
 	checkpoint->scale = j.at("scale").get<float>();
 
 	checkpoint->id = j.at("id").get<int>();
@@ -676,7 +696,7 @@ void RingsMapEditor::SpawnMesh(Mesh& _mesh)
 		return;
 	}
 
-	AKActorSpawnable* spawnedKActor = reinterpret_cast<AKActorSpawnable*>(KActorDefault->SpawnInstance(NULL, FName(0), _mesh.location, _mesh.rotation, 0));
+	AKActorSpawnable* spawnedKActor = reinterpret_cast<AKActorSpawnable*>(KActorDefault->SpawnInstance(NULL, FName(0), _mesh.GetFVectorLocation(), _mesh.GetFRotatorRotation(), 0));
 	if (!spawnedKActor)
 	{
 		LOG("[ERROR]spawnedKActor NULL");

@@ -24,6 +24,7 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
 	,public SettingsWindowBase // Uncomment if you wanna render your own tab in the settings menu
 	,public PluginWindowBase // Uncomment if you want to render your own plugin window
 {
+    TriggerVolume_Cylinder cylinder;
 
     std::filesystem::path DataFolderPath;
     std::filesystem::path RLCookedPCConsolePath;
@@ -53,6 +54,8 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
         { "Teleport To Checkpoint", std::make_shared<TeleportToCheckpoint>() }
     };
     int selectedObjectIndex = -1;
+
+    void ConvertTriggerVolume(std::shared_ptr<TriggerVolume>& _triggerVolume, TriggerVolumeType _triggerVolumeType);
 
     void OnGameCreated(std::string eventName);
     void OnGameFirstTick(std::string eventName);
@@ -107,7 +110,7 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
 	void RenderProperties_Mesh(Mesh& _mesh);
     void RenderProperties_TriggerVolume(std::shared_ptr<TriggerVolume>& _volume);
     void RenderProperties_TriggerVolume_Box(TriggerVolume_Box& _volume);
-    //void RenderProperties_TriggerVolume_Cylinder(TriggerVolume_Box& _volume);
+    void RenderProperties_TriggerVolume_Cylinder(TriggerVolume_Cylinder& _volume);
     void RenderProperties_Checkpoint(Checkpoint& _checkpoint);
     void RenderInputText(std::string _label, std::string* _value, ImGuiInputTextFlags _flags = 0);
     std::shared_ptr<Object> CopyObject(Object& _object);

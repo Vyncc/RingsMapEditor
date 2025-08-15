@@ -19,13 +19,13 @@ public:
     Mesh() {
         objectType = ObjectType::Mesh;
         name = "Mesh";
-        location = { 0.f, 0.f, 0.f };
-        rotation = { 0, 0, 0 };
+        location = Vector(0);
+        rotation = Rotator(0);
         scale = 1.f;
 		meshInfos = MeshInfos();
     }
 
-    Mesh(std::string _name, MeshInfos _meshInfos = MeshInfos(), FVector _location = { 0.f, 0.f, 0.f }, FRotator _rotation = { 0, 0, 0 }, float _scale = 1.f) {
+    Mesh(std::string _name, MeshInfos _meshInfos = MeshInfos(), Vector _location = { 0.f, 0.f, 0.f }, Rotator _rotation = { 0, 0, 0 }, float _scale = 1.f) {
         objectType = ObjectType::Mesh;
         name = _name;
         location = _location;
@@ -46,8 +46,11 @@ public:
     void EnableStickyWalls();
     void DisableStickyWalls();
 	void SetLocation(const FVector& _newLocation);
+	void SetLocation(const Vector& _newLocation) override;
 	void SetRotation(const FRotator& _newRotation);
+	void SetRotation(const Rotator& _newRotation) override;
 	void SetScale3D(const FVector& _newScale3D);
+	void SetScale3D(const Vector& _newScale3D);
 
     static UPhysicalMaterial* GetStickyWallsPhysMaterial();
 

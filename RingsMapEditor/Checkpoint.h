@@ -20,33 +20,16 @@ public:
     Checkpoint() {
 		objectType = ObjectType::Checkpoint;
 		name = "Checkpoint";
-        location = FVector{ 0.f, 0.f, 0.f };
-        rotation = FRotator{ 0, 0, 0 };
+        location = Vector(0);
+        rotation = Rotator(0);
         checkpointType = CheckpointType::Mid;
 	}
 	~Checkpoint() {}
 
 	void Render(CanvasWrapper canvas, CameraWrapper camera) {
+        triggerVolume.Render(canvas, camera);
+
         RT::Frustum frustum(canvas, camera);  // Create frustum (use default constructor or initialize as needed)
-
-        // Edges of a box defined by vertex indices
-        constexpr int edges[12][2] = {
-            {0, 1}, {1, 2}, {2, 3}, {3, 0}, // Bottom face edges
-            {4, 5}, {5, 6}, {6, 7}, {7, 4}, // Top face edges
-            {0, 4}, {1, 5}, {2, 6}, {3, 7}  // Vertical edges connecting top and bottom faces
-        };
-
-        // Set the draw color to white, fully opaque
-        canvas.SetColor(255, 255, 255, 255);
-
-        // Draw each edge as a line within the frustum
-        for (auto& edge : edges)
-        {
-            Vector start = Vector{ triggerVolume.vertices[edge[0]].X, triggerVolume.vertices[edge[0]].Y, triggerVolume.vertices[edge[0]].Z };
-            Vector end = Vector{ triggerVolume.vertices[edge[1]].X, triggerVolume.vertices[edge[1]].Y, triggerVolume.vertices[edge[1]].Z };
-            RT::Line line(start, end);
-            line.DrawWithinFrustum(canvas, frustum);
-        }
 
         //render spawn location
         canvas.SetColor(0, 255, 0, 255); // Green color for spawn location
@@ -61,22 +44,22 @@ public:
         }
 	}
 
-    void SetLocation(FVector _newLocation) {
+    void SetLocation(const Vector& _newLocation) override {
         location = _newLocation;
         triggerVolume.SetLocation(_newLocation);
     }
 
-    void SetRotation(FRotator _newRotation) {
+    void SetRotation(const Rotator& _newRotation) override {
         rotation = _newRotation;
         triggerVolume.SetRotation(_newRotation);
     }
 
-    void SetSize(FVector _newSize) {
+    void SetSize(Vector _newSize) {
         triggerVolume.SetSize(_newSize);
     }
 
     Vector GetSpawnWorldLocation() const {
-        return Vector{ location.X + spawnLocation.X, location.Y + spawnLocation.Y, location.Z + spawnLocation.Z };
+        return location + spawnLocation;
     }
 
 	bool IsStartCheckpoint() const {

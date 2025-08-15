@@ -43,8 +43,8 @@ public:
     TriggerVolume() {
 		objectType = ObjectType::TriggerVolume;
 		name = "Trigger Volume";
-		location = FVector{ 0.f, 0.f, 0.f };
-		rotation = FRotator{ 0, 0, 0 };
+		location = Vector(0);
+        rotation = Rotator(0);
         triggerVolumeType = TriggerVolumeType::Unknown;
     }
     virtual ~TriggerVolume() {}
@@ -60,7 +60,6 @@ public:
         onTouchCallback = callback;
     }
 
-    virtual bool IsPointInside(const FVector& point) const = 0;
     virtual bool IsPointInside(const Vector& point) const = 0;
     virtual void Render(CanvasWrapper canvas, CameraWrapper camera) = 0;
 
@@ -75,16 +74,16 @@ class TriggerVolume_Box : public TriggerVolume
 {
 public:
     // Rotation is in degrees
-    FVector size = { 200.f, 200.f, 200.f };     // Full size along X, Y, Z
-    std::array<FVector, 8> vertices;            // 8 vertices in WORLD coordinates
+    Vector size = { 200.f, 200.f, 200.f };     // Full size along X, Y, Z
+    std::array<Vector, 8> vertices;            // 8 vertices in WORLD coordinates
 
     TriggerVolume_Box() {
         objectType = ObjectType::TriggerVolume;
         triggerVolumeType = TriggerVolumeType::Box;
         name = "Trigger Volume Box";
-        location = FVector{ 0.f, 0.f, 0.f };
-        rotation = FRotator{ 0, 0, 0 };
-        size = FVector{ 200.f, 200.f, 200.f };
+        location = Vector(0);
+        rotation = Rotator(0);
+        size = Vector{ 200.f, 200.f, 200.f };
         UpdateVertices();
     }
 
@@ -96,18 +95,27 @@ public:
         location = base.location;
         rotation = base.rotation;
 
-        size = FVector{ 200.f, 200.f, 200.f };
+        if (base.onTouchCallback)
+            onTouchCallback = base.onTouchCallback->Clone();
+
+        size = Vector{ 200.f, 200.f, 200.f };
         UpdateVertices();
     }
 
-    TriggerVolume_Box(FVector _size) {
-        location = FVector{ 0.f, 0.f , 0.f };
-        rotation = FRotator{ 0, 0, 0 };
+    TriggerVolume_Box(Vector _size) {
+        objectType = ObjectType::TriggerVolume;
+        triggerVolumeType = TriggerVolumeType::Box;
+        name = "Trigger Volume Box";
+        location = Vector{ 0.f, 0.f , 0.f };
+        rotation = Rotator{ 0, 0, 0 };
         size = _size;
         UpdateVertices();
     }
 
-    TriggerVolume_Box(FVector _location, FRotator _rotation, FVector _size) {
+    TriggerVolume_Box(Vector _location, Rotator _rotation, Vector _size) {
+        objectType = ObjectType::TriggerVolume;
+        triggerVolumeType = TriggerVolumeType::Box;
+        name = "Trigger Volume Box";
         location = _location;
         rotation = _rotation;
         size = _size;
@@ -117,13 +125,13 @@ public:
     ~TriggerVolume_Box() {}
 
     // Set the center position
-    void SetLocation(const FVector& newLocation) {
+    void SetLocation(const Vector& newLocation) override {
         location = newLocation;
         UpdateVertices();
     }
 
     // Set the rotation
-    void SetRotation(const FRotator& newRotation) {
+    void SetRotation(const Rotator& newRotation) override {
         rotation = newRotation;
         UpdateVertices();
     }
@@ -147,7 +155,7 @@ public:
     }
 
     // Resize and update vertices
-    void SetSize(FVector newSize) {
+    void SetSize(Vector newSize) {
         size = newSize;
         UpdateVertices();
     }
@@ -158,27 +166,26 @@ public:
         float hy = size.Y / 2.0f;
         float hz = size.Z / 2.0f;
 
-        std::array<FVector, 8> local = {
-            FVector{ -hx, -hy, -hz },
-            FVector{ hx, -hy, -hz },
-            FVector{ hx, hy, -hz },
-            FVector{ -hx, hy, -hz },
-            FVector{ -hx, -hy, hz },
-            FVector{ hx, -hy, hz },
-            FVector{ hx, hy, hz },
-            FVector{ -hx, hy, hz }
+        std::array<Vector, 8> local = {
+            Vector{ -hx, -hy, -hz },
+            Vector{ hx, -hy, -hz },
+            Vector{ hx, hy, -hz },
+            Vector{ -hx, hy, -hz },
+            Vector{ -hx, -hy, hz },
+            Vector{ hx, -hy, hz },
+            Vector{ hx, hy, hz },
+            Vector{ -hx, hy, hz }
         };
 
-
         for (size_t i = 0; i < 8; i++) {
-            FVector rotatedVector = RotateVector(local[i], rotation);
-            vertices[i] = FVector{ location.X + rotatedVector.X, location.Y + rotatedVector.Y, location.Z + rotatedVector.Z };
+            Vector rotatedVector = RotateVector(local[i], rotation);
+            vertices[i] = location + rotatedVector;
         }
     }
 
     // Check if a point is inside the box
-    bool IsPointInside(const FVector& point) const override {
-        FVector local = { point.X - location.X, point.Y - location.Y, point.Z - location.Z };
+    bool IsPointInside(const Vector& point) const override {
+        Vector local = point - location;
         local = InverseRotateVector(local, rotation);
 
         float hx = size.X / 2.0f;
@@ -188,11 +195,6 @@ public:
         return (local.X >= -hx && local.X <= hx &&
             local.Y >= -hy && local.Y <= hy &&
             local.Z >= -hz && local.Z <= hz);
-    }
-
-    // Check if a point is inside the box
-    bool IsPointInside(const Vector& point) const override {
-        return IsPointInside(FVector{ point.X, point.Y, point.Z });
     }
 
     void Render(CanvasWrapper canvas, CameraWrapper camera) override {
@@ -211,8 +213,8 @@ public:
         // Draw each edge as a line within the frustum
         for (auto& edge : edges)
         {
-            Vector start = Vector{ vertices[edge[0]].X, vertices[edge[0]].Y, vertices[edge[0]].Z };
-            Vector end = Vector{ vertices[edge[1]].X, vertices[edge[1]].Y, vertices[edge[1]].Z };
+            Vector start = vertices[edge[0]];
+            Vector end = vertices[edge[1]];
             RT::Line line(start, end);
             line.DrawWithinFrustum(canvas, frustum);
         }
@@ -247,26 +249,26 @@ public:
 
 private:
     // Rotate a vector from local -> world space
-    FVector RotateVector(const FVector& v, const FRotator& r) const {
+    Vector RotateVector(const Vector& v, const Rotator& r) const {
         float pitchRad = r.Pitch * (M_PI / 180.0f);
         float yawRad = r.Yaw * (M_PI / 180.0f);
         float rollRad = r.Roll * (M_PI / 180.0f);
 
         // Yaw (around Z axis)
         float cosY = cosf(yawRad), sinY = sinf(yawRad);
-        FVector res(v.X * cosY - v.Y * sinY,
+        Vector res(v.X * cosY - v.Y * sinY,
             v.X * sinY + v.Y * cosY,
             v.Z);
 
         // Pitch (around Y axis)
         float cosP = cosf(pitchRad), sinP = sinf(pitchRad);
-        FVector resP(res.X * cosP + res.Z * sinP,
+        Vector resP(res.X * cosP + res.Z * sinP,
             res.Y,
             -res.X * sinP + res.Z * cosP);
 
         // Roll (around X axis)
         float cosR = cosf(rollRad), sinR = sinf(rollRad);
-        FVector resR(resP.X,
+        Vector resR(resP.X,
             resP.Y * cosR - resP.Z * sinR,
             resP.Y * sinR + resP.Z * cosR);
 
@@ -274,8 +276,100 @@ private:
     }
 
     // Rotate a vector from world -> local space
-    FVector InverseRotateVector(const FVector& v, const FRotator& r) const {
-        FRotator inv{ -r.Pitch, -r.Yaw, -r.Roll };
+    Vector InverseRotateVector(const Vector& v, const Rotator& r) const {
+        Rotator inv{ -r.Pitch, -r.Yaw, -r.Roll };
         return RotateVector(v, inv);
+    }
+};
+
+class TriggerVolume_Cylinder : public TriggerVolume
+{
+public:
+    float radius = 50.f;
+    float height = 100.f;
+
+    TriggerVolume_Cylinder() {
+        objectType = ObjectType::TriggerVolume;
+        triggerVolumeType = TriggerVolumeType::Cylinder;
+        name = "Trigger Volume Cylinder";
+        location = Vector(0);
+        rotation = Rotator(0);
+        radius = 50.f;
+        height = 100.f;
+    }
+
+    // Conversion constructor from base TriggerVolume
+    TriggerVolume_Cylinder(const TriggerVolume& base) {
+        objectType = ObjectType::TriggerVolume;
+        triggerVolumeType = TriggerVolumeType::Cylinder;
+        name = base.name;
+        location = base.location;
+        rotation = base.rotation;
+
+        if (base.onTouchCallback)
+            onTouchCallback = base.onTouchCallback->Clone();
+
+        radius = 50.f;
+        height = 100.f;
+    }
+
+    TriggerVolume_Cylinder(float _radius, float _height) {
+        objectType = ObjectType::TriggerVolume;
+        triggerVolumeType = TriggerVolumeType::Cylinder;
+        name = "Trigger Volume Cylinder";
+        location = Vector(0);
+        rotation = Rotator(0);
+        radius = _radius;
+        height = _height;
+    }
+
+    TriggerVolume_Cylinder(Vector _location, Rotator _rotation, float _radius, float _height) {
+        objectType = ObjectType::TriggerVolume;
+        triggerVolumeType = TriggerVolumeType::Cylinder;
+        name = "Trigger Volume Cylinder";
+        location = _location;
+        rotation = _rotation;
+        radius = _radius;
+        height = _height;
+    }
+
+    ~TriggerVolume_Cylinder() {}
+
+    bool IsPointInside(const Vector& point) const override {
+        RT::Cylinder cylinder(location, RotatorToQuat(rotation), radius, height);
+        return cylinder.IsInCylinder(point);
+    }
+
+    void Render(CanvasWrapper canvas, CameraWrapper camera) override {
+        RT::Frustum frustum(canvas, camera);  // Create frustum (use default constructor or initialize as needed)
+        canvas.SetColor(255, 255, 255, 255);
+        RT::Cylinder cylinder(location, RotatorToQuat(rotation), radius, height);
+        cylinder.Draw(canvas, frustum);
+    }
+
+    nlohmann::json to_json() const override {
+        nlohmann::json triggerVolumeBoxJson{
+            {"objectType", static_cast<uint8_t>(objectType)},
+            {"name", name},
+            {"location", location},
+            {"rotation", rotation},
+            {"scale", scale},
+            {"triggerVolumeType", static_cast<uint8_t>(triggerVolumeType)},
+            {"radius", radius},
+            {"height", height}
+        };
+
+        if (onTouchCallback)
+            triggerVolumeBoxJson["onTouchCallback"] = onTouchCallback->to_json();
+        else
+            triggerVolumeBoxJson["onTouchCallback"] = nullptr;
+
+        return triggerVolumeBoxJson;
+    }
+
+    std::shared_ptr<Object> Clone() override {
+        std::shared_ptr<TriggerVolume_Cylinder> clonedVolume = std::make_shared<TriggerVolume_Cylinder>(*this);
+        clonedVolume->onTouchCallback = (onTouchCallback ? onTouchCallback->Clone() : nullptr);
+        return clonedVolume;
     }
 };

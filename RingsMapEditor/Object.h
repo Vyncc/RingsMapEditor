@@ -24,7 +24,7 @@ class Object
 public:
 
     Object() {}
-    Object(std::string _name, FVector _location = { 0.f, 0.f, 0.f }, FRotator _rotation = { 0, 0, 0 }, float _scale = 1.f) {
+    Object(std::string _name, Vector _location = { 0.f, 0.f, 0.f }, Rotator _rotation = { 0, 0, 0 }, float _scale = 1.f) {
         name = _name;
         location = _location;
         rotation = _rotation;
@@ -36,17 +36,41 @@ public:
     virtual nlohmann::json to_json() const = 0;
     virtual std::shared_ptr<Object> Clone() = 0;
 
-	Vector GetVectorLocation() const {
-		return Vector{ location.X, location.Y, location.Z };
+    virtual void SetLocation(const Vector& _newLocation) {
+        location = _newLocation;
+    }
+
+    virtual void SetRotation(const Rotator& _newRotator) {
+        rotation = _newRotator;
+    }
+
+    FVector GetFVectorLocation() const {
+		return VectorToFVector(location);
 	}
 
-	Vector GetFVectorLocation() const {
-		return Vector{ location.X, location.Y, location.Z };
+    FRotator GetFRotatorRotation() const {
+		return RotatorToFRotator(rotation);
 	}
+
+    static FVector VectorToFVector(const Vector& _vector) {
+        return FVector{ _vector.X, _vector.Y, _vector.Z };
+    }
+
+    static Vector FVectorToVector(const FVector& _vector) {
+        return Vector{ _vector.X, _vector.Y, _vector.Z };
+    }
+
+    static FRotator RotatorToFRotator(const Rotator& _rotator) {
+        return FRotator{ _rotator.Pitch, _rotator.Yaw, _rotator.Roll };
+    }
+
+    static Rotator FRotatorToRotator(const FRotator& _rotator) {
+        return Rotator{ _rotator.Pitch, _rotator.Yaw, _rotator.Roll };
+    }
 
 	ObjectType objectType = ObjectType::Unknown;
     std::string name;
-    FVector location;
-    FRotator rotation;
+    Vector location;
+    Rotator rotation;
     float scale = 1.0f;
 };
