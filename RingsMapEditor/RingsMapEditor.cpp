@@ -256,6 +256,14 @@ std::shared_ptr<Object> RingsMapEditor::AddObject(ObjectType _objectType)
 		SelectLastObject();
 		return newCheckpoint;
 	}
+	else if (_objectType == ObjectType::Ring)
+	{
+		std::shared_ptr<Ring_Small> newRing = std::make_shared<Ring_Small>(rings.size() + 1);
+		objects.emplace_back(newRing);
+		rings.emplace_back(newRing);
+		SelectLastObject();
+		return newRing;
+	}
 	else
 	{
 		LOG("[ERROR] Unsupported object type: {}", static_cast<int>(_objectType));
@@ -400,6 +408,20 @@ void RingsMapEditor::RenderCheckpoints(CanvasWrapper canvas)
 	}
 }
 
+void RingsMapEditor::RenderRings(CanvasWrapper canvas)
+{
+	if (!IsInEditorMode())
+		return;
+
+	CameraWrapper camera = gameWrapper->GetCamera();
+	if (!camera) return;
+
+	for (std::shared_ptr<Ring>& ring : rings)
+	{
+		ring->RenderTriggerVolumes(canvas, camera);
+	}
+}
+
 void RingsMapEditor::RenderTimer(CanvasWrapper canvas)
 {
 	if (!IsInRaceMode())
@@ -427,6 +449,7 @@ void RingsMapEditor::RenderCanvas(CanvasWrapper canvas)
 	{
 		RenderTriggerVolumes(canvas);
 		RenderCheckpoints(canvas);
+		RenderRings(canvas);
 	}
 	else if (IsInRaceMode())
 	{
@@ -471,27 +494,34 @@ std::vector<MeshInfos> RingsMapEditor::GetAvailableMeshes()
 
 std::shared_ptr<Object> RingsMapEditor::FromJson_Object(const nlohmann::json& j)
 {
+	std::shared_ptr<Object> object = nullptr;
 	ObjectType objectType = static_cast<ObjectType>(j.at("objectType").get<uint8_t>());
 
 	if (objectType == ObjectType::Mesh)
-		return FromJson_Mesh(j);
+		object = FromJson_Mesh(j);
 	else if(objectType == ObjectType::TriggerVolume)
-		return FromJson_TriggerVolume(j);
+		object = FromJson_TriggerVolume(j);
 	else if(objectType == ObjectType::Checkpoint)
-		return FromJson_Checkpoint(j);
+		object = FromJson_Checkpoint(j);
+	else
+		throw std::runtime_error("Unknown object type: " + std::to_string(static_cast<uint8_t>(objectType)));
 
-	throw std::runtime_error("Unknown object type: " + std::to_string(static_cast<uint8_t>(objectType)));
+	if (object)
+	{
+		object->objectType = static_cast<ObjectType>(j.at("objectType").get<uint8_t>());
+		object->name = j.at("name").get<std::string>();
+		object->location = j.at("location").get<Vector>();
+		object->rotation = j.at("rotation").get<Rotator>();
+		object->scale = j.at("scale").get<float>();
+	}
+
+	return object;
 }
 
 std::shared_ptr<Mesh> RingsMapEditor::FromJson_Mesh(const nlohmann::json& j)
 {
 	std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>();
 
-	mesh->objectType = static_cast<ObjectType>(j.at("objectType").get<uint8_t>());
-	mesh->name = j.at("name").get<std::string>();
-	mesh->location = j.at("location").get<Vector>();
-	mesh->rotation = j.at("rotation").get<Rotator>();
-	mesh->scale = j.at("scale").get<float>();
 	mesh->meshInfos = j.at("meshInfos").get<MeshInfos>();
 	mesh->enableCollisions = j.at("enableCollisions").get<bool>();
 	mesh->enablePhysics = j.at("enablePhysics").get<bool>();
@@ -502,66 +532,75 @@ std::shared_ptr<Mesh> RingsMapEditor::FromJson_Mesh(const nlohmann::json& j)
 
 std::shared_ptr<TriggerVolume> RingsMapEditor::FromJson_TriggerVolume(const nlohmann::json& j)
 {
+	std::shared_ptr<TriggerVolume> triggerVolume = nullptr;
 	TriggerVolumeType triggerVolumeType = static_cast<TriggerVolumeType>(j.at("triggerVolumeType").get<uint8_t>());
 
 	if (triggerVolumeType == TriggerVolumeType::Box)
-		return FromJson_TriggerVolume_Box(j);
-	/*else if (triggerVolumeType == TriggerVolumeType::Cylinder)
-		return FromJson_TriggerVolume(j);*/
+		triggerVolume = FromJson_TriggerVolume_Box(j);
+	else if (triggerVolumeType == TriggerVolumeType::Cylinder)
+		triggerVolume = FromJson_TriggerVolume_Cylinder(j);
+	else
+		throw std::runtime_error("Unknown trigger volume type: " + std::to_string(static_cast<uint8_t>(triggerVolumeType)));
 
-	throw std::runtime_error("Unknown trigger volume type: " + std::to_string(static_cast<uint8_t>(triggerVolumeType)));
+	if (triggerVolume)
+	{
+		triggerVolume->triggerVolumeType = static_cast<TriggerVolumeType>(j.at("triggerVolumeType").get<uint8_t>());
+
+		if (j.contains("onTouchCallback") && !j["onTouchCallback"].is_null())
+		{
+			if (j["onTouchCallback"].is_object())
+			{
+				std::string touchCallBackName = j["onTouchCallback"]["name"].get<std::string>();
+				triggerVolume->SetOnTouchCallback(triggerFunctionsMap[touchCallBackName]->CloneFromJson(j["onTouchCallback"]));
+			}
+		}
+	}
+
+	return triggerVolume;
 }
 
 std::shared_ptr<TriggerVolume_Box> RingsMapEditor::FromJson_TriggerVolume_Box(const nlohmann::json& j)
 {
 	std::shared_ptr<TriggerVolume_Box> triggerVolumeBox = std::make_shared<TriggerVolume_Box>();
 
-	triggerVolumeBox->objectType = static_cast<ObjectType>(j.at("objectType").get<uint8_t>());
-	triggerVolumeBox->name = j.at("name").get<std::string>();
-	triggerVolumeBox->location = j.at("location").get<Vector>();
-	triggerVolumeBox->rotation = j.at("rotation").get<Rotator>();
-	triggerVolumeBox->scale = j.at("scale").get<float>();
-
-	triggerVolumeBox->triggerVolumeType = static_cast<TriggerVolumeType>(j.at("triggerVolumeType").get<uint8_t>());
-
-	if (j.contains("onTouchCallback") && !j["onTouchCallback"].is_null())
-	{
-		if (j["onTouchCallback"].is_object())
-		{
-			std::string touchCallBackName = j["onTouchCallback"]["name"].get<std::string>();
-			triggerVolumeBox->SetOnTouchCallback(triggerFunctionsMap[touchCallBackName]->CloneFromJson(j["onTouchCallback"]));
-		}
-	}
-
 	triggerVolumeBox->size = j.at("size").get<Vector>();
-	LOG("{} {} {}", triggerVolumeBox->size.X, triggerVolumeBox->size.Y, triggerVolumeBox->size.Z);
-	triggerVolumeBox->vertices = j.at("vertices").get<std::array<Vector, 8>>();
 
 	return triggerVolumeBox;
 }
 
-std::shared_ptr<TriggerVolume> RingsMapEditor::FromJson_TriggerVolume_Cylinder(const nlohmann::json& j)
+std::shared_ptr<TriggerVolume_Cylinder> RingsMapEditor::FromJson_TriggerVolume_Cylinder(const nlohmann::json& j)
 {
-	return std::shared_ptr<TriggerVolume>();
+	std::shared_ptr<TriggerVolume_Cylinder> triggerVolumeCylinder = std::make_shared<TriggerVolume_Cylinder>();
+
+	triggerVolumeCylinder->radius = j.at("radius").get<float>();
+	triggerVolumeCylinder->height = j.at("size").get<float>();
+
+	return triggerVolumeCylinder;
 }
 
 std::shared_ptr<Checkpoint> RingsMapEditor::FromJson_Checkpoint(const nlohmann::json& j)
 {
 	std::shared_ptr<Checkpoint> checkpoint = std::make_shared<Checkpoint>();
 
-	checkpoint->objectType = static_cast<ObjectType>(j.at("objectType").get<uint8_t>());
-	checkpoint->name = j.at("name").get<std::string>();
-	checkpoint->location = j.at("location").get<Vector>();
-	checkpoint->rotation = j.at("rotation").get<Rotator>();
-	checkpoint->scale = j.at("scale").get<float>();
-
 	checkpoint->id = j.at("id").get<int>();
 	checkpoint->checkpointType = static_cast<CheckpointType>(j.at("checkpointType").get<uint8_t>());
 	checkpoint->triggerVolume = *FromJson_TriggerVolume_Box(j["triggerVolume"]);
-	checkpoint->spawnLocation = j.at("spawnLocation").get<Vector>();
+	checkpoint->spawnLocation_offset = j.at("spawnLocation_offset").get<Vector>();
 	checkpoint->spawnRotation = j.at("spawnRotation").get<Rotator>();
 
 	return checkpoint;
+}
+
+std::shared_ptr<Ring> RingsMapEditor::FromJson_Ring(const nlohmann::json& j)
+{
+	std::shared_ptr<Ring> ring = std::make_shared<Ring>();
+
+	ring->id = j.at("id").get<int>();
+	ring->mesh = *FromJson_Mesh(j["mesh"]);
+	ring->triggerVolumeIn = *FromJson_TriggerVolume_Cylinder(j["triggerVolumeIn"]);
+	ring->triggerVolumeOut = *FromJson_TriggerVolume_Box(j["triggerVolumeOut"]);
+
+	return ring;
 }
 
 void RingsMapEditor::EnableCollisions(AKActor* _kActor)
@@ -728,20 +767,11 @@ void RingsMapEditor::SpawnMesh(Mesh& _mesh)
 	LOG("Spawned object successfully : {}", _mesh.name);
 }
 
-void RingsMapEditor::DestroyMesh(Mesh& _mesh)
-{
-	if (_mesh.instance)
-	{
-		_mesh.instance->Destroy();
-		_mesh.instance = nullptr;
-	}
-}
-
 void RingsMapEditor::DestroyAllMeshes()
 {
 	for (std::shared_ptr<Mesh>& mesh : meshes)
 	{
-		DestroyMesh(*mesh);
+		mesh->DestroyInstance();
 	}
 }
 
@@ -752,7 +782,6 @@ void RingsMapEditor::RemoveObject(int objectIndex)
 	if (selectedObject->objectType == ObjectType::Mesh)
 	{
 		std::shared_ptr<Mesh> mesh = std::static_pointer_cast<Mesh>(selectedObject);
-		DestroyMesh(*mesh);
 		meshes.erase(std::remove(meshes.begin(), meshes.end(), mesh), meshes.end());
 		LOG("Removed mesh: {}", mesh->name);
 	}
@@ -767,6 +796,12 @@ void RingsMapEditor::RemoveObject(int objectIndex)
 		std::shared_ptr<Checkpoint> chekpoint = std::static_pointer_cast<Checkpoint>(selectedObject);
 		checkpoints.erase(std::remove(checkpoints.begin(), checkpoints.end(), chekpoint), checkpoints.end());
 		LOG("Removed checkpoint: {}", chekpoint->name);
+	}
+	else if (selectedObject->objectType == ObjectType::Ring)
+	{
+		std::shared_ptr<Ring> ring = std::static_pointer_cast<Ring>(selectedObject);
+		rings.erase(std::remove(rings.begin(), rings.end(), ring), rings.end());
+		LOG("Removed ring: {}", ring->name);
 	}
 
 	objects.erase(objects.begin() + objectIndex);

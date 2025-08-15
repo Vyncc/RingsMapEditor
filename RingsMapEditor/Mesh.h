@@ -33,7 +33,19 @@ public:
         scale = _scale;
 		meshInfos = _meshInfos;
     }
-    ~Mesh() {}
+
+    Mesh(MeshInfos _meshInfos) {
+        objectType = ObjectType::Mesh;
+        name = "Mesh" + _meshInfos.name;
+        location = Vector(0);
+        rotation = Rotator(0);
+        scale = 1.f;
+		meshInfos = _meshInfos;
+    }
+
+    ~Mesh() {
+        DestroyInstance();
+    }
 
 	bool IsSpawned() const;
 	bool HasCollisionMesh() const;
@@ -51,6 +63,7 @@ public:
 	void SetRotation(const Rotator& _newRotation) override;
 	void SetScale3D(const FVector& _newScale3D);
 	void SetScale3D(const Vector& _newScale3D);
+    void DestroyInstance();
 
     static UPhysicalMaterial* GetStickyWallsPhysMaterial();
 

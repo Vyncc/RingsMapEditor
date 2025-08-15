@@ -156,6 +156,8 @@ void Mesh::SetLocation(const FVector& _newLocation)
 	{
 		collisionComp->SetRBPosition(_newLocation, FName());
 	}
+
+	LOG("set loccccc");
 }
 
 void Mesh::SetLocation(const Vector& _newLocation)
@@ -210,6 +212,15 @@ void Mesh::SetScale3D(const FVector& _newScale3D)
 void Mesh::SetScale3D(const Vector& _newScale3D)
 {
 	SetScale3D(VectorToFVector(_newScale3D));
+}
+
+void Mesh::DestroyInstance()
+{
+	if (instance)
+	{
+		instance->Destroy();
+		instance = nullptr;
+	}
 }
 
 UPhysicalMaterial* Mesh::GetStickyWallsPhysMaterial()

@@ -189,6 +189,9 @@
     <ClCompile Include="Mesh.cpp">
       <Filter>Plugin\src</Filter>
     </ClCompile>
+    <ClCompile Include="RenderingTools\Objects\Box.cpp">
+      <Filter>Rendering Tools\Objects</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imgui\imgui_rangeslider.h">
@@ -424,6 +427,12 @@
     </ClInclude>
     <ClInclude Include="Timer.h">
       <Filter>Plugin\header</Filter>
+    </ClInclude>
+    <ClInclude Include="Ring.h">
+      <Filter>Plugin\header</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderingTools\Objects\Box.h">
+      <Filter>Rendering Tools\Objects</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

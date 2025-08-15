@@ -122,6 +122,10 @@ void RingsMapEditor::RenderProperties_Object(std::shared_ptr<Object>& _object)
 	{
 		RenderProperties_Checkpoint(*std::static_pointer_cast<Checkpoint>(_object));
 	}
+	else if (_object->objectType == ObjectType::Ring)
+	{
+		RenderProperties_Ring(*std::static_pointer_cast<Ring>(_object));
+	}
 	else
 	{
 		ImGui::Text("Unknown object type");
@@ -180,8 +184,8 @@ void RingsMapEditor::RenderProperties_Mesh(Mesh& _mesh)
 	{
 		if (_mesh.instance)
 		{
-			gameWrapper->Execute([&, _mesh](GameWrapper* gw) {
-				//SetActorLocation(_mesh.instance, _mesh.GetFVectorLocation());
+			gameWrapper->Execute([this, &_mesh](GameWrapper* gw) {
+				_mesh.SetLocation(_mesh.location);
 				});
 		}
 	}
@@ -189,8 +193,8 @@ void RingsMapEditor::RenderProperties_Mesh(Mesh& _mesh)
 	{
 		if (_mesh.instance)
 		{
-			gameWrapper->Execute([&, _mesh](GameWrapper* gw) {
-				//SetActorRotation(_mesh.instance, _mesh.GetFRotatorRotation());
+			gameWrapper->Execute([this, &_mesh](GameWrapper* gw) {
+				_mesh.SetRotation(_mesh.rotation);
 				});
 		}
 	}
@@ -198,8 +202,9 @@ void RingsMapEditor::RenderProperties_Mesh(Mesh& _mesh)
 	{
 		if (_mesh.instance)
 		{
-			gameWrapper->Execute([&, _mesh](GameWrapper* gw) {
-				//SetActorScale3D(_mesh.instance, FVector{ _mesh.scale, _mesh.scale, _mesh.scale });
+			gameWrapper->Execute([this, &_mesh](GameWrapper* gw) {
+				SetActorScale3D(_mesh.instance, FVector{ _mesh.scale, _mesh.scale, _mesh.scale });
+				_mesh.SetScale3D(Vector(_mesh.scale, _mesh.scale, _mesh.scale));
 				});
 		}
 	}
@@ -253,7 +258,7 @@ void RingsMapEditor::RenderProperties_Mesh(Mesh& _mesh)
 	if (ImGui::Button("Destroy Object"))
 	{
 		gameWrapper->Execute([this, &_mesh](GameWrapper* gw) {
-			DestroyMesh(_mesh);
+			_mesh.DestroyInstance();
 			});
 	}
 
@@ -420,8 +425,117 @@ void RingsMapEditor::RenderProperties_Checkpoint(Checkpoint& _checkpoint)
 
 	ImGui::NewLine();
 
-	ImGui::DragFloat3("Spawn Location", &_checkpoint.spawnLocation.X);
+	ImGui::DragFloat3("Spawn Location", &_checkpoint.spawnLocation_offset.X);
 	ImGui::DragInt3("Spawn Rotation", &_checkpoint.spawnRotation.Pitch);
+}
+
+void RingsMapEditor::RenderProperties_Ring(Ring& _ring)
+{
+	if (ImGui::DragFloat3("Location", &_ring.location.X))
+	{
+		gameWrapper->Execute([this, &_ring](GameWrapper* gw) {
+			_ring.SetLocation(_ring.location);
+			});
+	}
+
+	if (ImGui::DragInt3("Rotation", &_ring.rotation.Pitch))
+	{
+		gameWrapper->Execute([this, &_ring](GameWrapper* gw) {
+			_ring.SetRotation(_ring.rotation);
+			});
+	}
+
+	ImGui::NewLine();
+
+	ImGui::Text("Mesh");
+	ImGui::SameLine();
+	if (ImGui::BeginCombo("##Mesh", _ring.mesh.meshInfos.name.c_str()))
+	{
+		if (ImGui::Selectable("", (_ring.mesh.meshInfos.name == "")))
+		{
+			_ring.mesh.meshInfos = MeshInfos();
+		}
+
+		for (const auto& mesh : AvailableMeshes)
+		{
+			if (ImGui::Selectable(mesh.name.c_str(), (_ring.mesh.meshInfos.name == mesh.name)))
+			{
+				_ring.mesh.meshInfos = mesh;
+			}
+		}
+		ImGui::EndCombo();
+	}
+
+	//check if the mesh of the selected object exist in the available meshes
+	if (std::find_if(AvailableMeshes.begin(), AvailableMeshes.end(), [&](const MeshInfos& m) { return m.meshPath == _ring.mesh.meshInfos.meshPath; }) == AvailableMeshes.end())
+	{
+		ImGui::SameLine();
+		ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Mesh not found!");
+	}
+
+	RenderInputText("Mesh Path", &_ring.mesh.meshInfos.meshPath, ImGuiInputTextFlags_ReadOnly);
+
+	ImGui::NewLine();
+
+	ImGui::PushID("In Trigger Volume");
+	ImGui::Text("In Trigger Volume");
+
+	if(ImGui::DragFloat3("Location ##In Trigger Volume", &_ring.triggerVolumeIn_offset_location.X))
+	{
+		_ring.UpdateTriggerVolumes();
+	}
+	RenderProperties_TriggerVolume_Cylinder(_ring.triggerVolumeIn);
+	ImGui::PopID();
+
+	ImGui::NewLine();
+
+	ImGui::PushID("Out Trigger Volume");
+	ImGui::Text("Out Trigger Volume");
+
+	if (ImGui::DragFloat3("Location ##Out Trigger Volume", &_ring.triggerVolumeOut_offset_location.X))
+	{
+		_ring.UpdateTriggerVolumes();
+	}
+	RenderProperties_TriggerVolume_Box(_ring.triggerVolumeOut);
+	ImGui::PopID();
+
+	ImGui::NewLine();
+
+	bool CantSpawnObject = !IsInGame() || _ring.mesh.IsMeshPathEmpty() || _ring.mesh.IsSpawned();
+	std::string errorMessage = "";
+
+	if (CantSpawnObject)
+	{
+		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f); // fade out
+		ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true); // actually disable interaction
+	}
+
+	if (!IsInGame())
+		errorMessage = "You must be in a game";
+	else if (_ring.mesh.IsMeshPathEmpty())
+		errorMessage = "Object path is empty";
+	else if (_ring.mesh.IsSpawned())
+		errorMessage = "Object is already spawned";
+
+	if (ImGui::Button("Spawn Object"))
+	{
+		gameWrapper->Execute([this, &_ring](GameWrapper* gw) {
+			SpawnMesh(_ring.mesh);
+			});
+	}
+
+	if (CantSpawnObject)
+	{
+		ImGui::PopItemFlag();
+		ImGui::PopStyleVar();
+
+		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+		{
+			ImGui::BeginTooltip();
+			ImGui::Text(errorMessage.c_str());
+			ImGui::EndTooltip();
+		}
+	}
 }
 
 void RingsMapEditor::RenderInputText(std::string _label, std::string* _value, ImGuiInputTextFlags _flags)
@@ -469,6 +583,12 @@ void RingsMapEditor::RenderAddObjectPopup()
 		if (ImGui::Button("Checkpoint", ImVec2(150.f, 40.f)))
 		{
 			AddObject(ObjectType::Checkpoint);
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Ring", ImVec2(150.f, 40.f)))
+		{
+			AddObject(ObjectType::Ring);
 			ImGui::CloseCurrentPopup();
 		}
 

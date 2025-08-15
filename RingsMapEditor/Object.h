@@ -16,7 +16,8 @@ enum class ObjectType : uint8_t
 	Unknown = 0,
     Mesh = 1,
 	TriggerVolume = 2,
-	Checkpoint = 3
+	Checkpoint = 3,
+    Ring = 4
 };
 
 class Object
@@ -40,8 +41,8 @@ public:
         location = _newLocation;
     }
 
-    virtual void SetRotation(const Rotator& _newRotator) {
-        rotation = _newRotator;
+    virtual void SetRotation(const Rotator& _newRotation) {
+        rotation = _newRotation;
     }
 
     FVector GetFVectorLocation() const {

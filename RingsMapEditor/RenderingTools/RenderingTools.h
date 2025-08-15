@@ -1,6 +1,7 @@
 #pragma once
 
 //3D Objects
+#include "Objects/Box.h"
 #include "Objects/Chevron.h"
 #include "Objects/Circle.h"
 #include "Objects/Circle2D.h"

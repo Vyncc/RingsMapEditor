@@ -9,7 +9,7 @@
 constexpr auto plugin_version = stringify(VERSION_MAJOR) "." stringify(VERSION_MINOR) "." stringify(VERSION_PATCH) "." stringify(VERSION_BUILD);
 
 
-#include "Mesh.h"
+#include "Ring.h"
 #include "TriggerFunctions.h"
 #include "Timer.h"
 
@@ -53,6 +53,11 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
         { "Destroy", std::make_shared<Destroy>() },
         { "Teleport To Checkpoint", std::make_shared<TeleportToCheckpoint>() }
     };
+
+
+    std::vector<std::shared_ptr<Ring>> rings;
+    int currentRingID = -1;
+
     int selectedObjectIndex = -1;
 
     void ConvertTriggerVolume(std::shared_ptr<TriggerVolume>& _triggerVolume, TriggerVolumeType _triggerVolumeType);
@@ -75,8 +80,9 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
     std::shared_ptr<Mesh> FromJson_Mesh(const nlohmann::json& j);
     std::shared_ptr<TriggerVolume> FromJson_TriggerVolume(const nlohmann::json& j);
     std::shared_ptr<TriggerVolume_Box> FromJson_TriggerVolume_Box(const nlohmann::json& j);
-    std::shared_ptr<TriggerVolume> FromJson_TriggerVolume_Cylinder(const nlohmann::json& j);
+    std::shared_ptr<TriggerVolume_Cylinder> FromJson_TriggerVolume_Cylinder(const nlohmann::json& j);
     std::shared_ptr<Checkpoint> FromJson_Checkpoint(const nlohmann::json& j);
+    std::shared_ptr<Ring> FromJson_Ring(const nlohmann::json& j);
 
 
 	//Boilerplate
@@ -88,6 +94,7 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
     void OnTick(std::string eventName);
     void RenderTriggerVolumes(CanvasWrapper canvas);
     void RenderCheckpoints(CanvasWrapper canvas);
+    void RenderRings(CanvasWrapper canvas);
 	void RenderTimer(CanvasWrapper canvas);
     void RenderCanvas(CanvasWrapper canvas);
 
@@ -100,7 +107,6 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
     void SetActorRotation(AActor* _actor, const FRotator& _newRotation);
     void SetActorScale3D(AActor* _actor, const FVector& _newScale3D);
     void SpawnMesh(Mesh& _mesh);
-    void DestroyMesh(Mesh& _mesh);
     void DestroyAllMeshes();
     void RemoveObject(int objectIndex);
 
@@ -112,6 +118,7 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
     void RenderProperties_TriggerVolume_Box(TriggerVolume_Box& _volume);
     void RenderProperties_TriggerVolume_Cylinder(TriggerVolume_Cylinder& _volume);
     void RenderProperties_Checkpoint(Checkpoint& _checkpoint);
+    void RenderProperties_Ring(Ring& _ring);
     void RenderInputText(std::string _label, std::string* _value, ImGuiInputTextFlags _flags = 0);
     std::shared_ptr<Object> CopyObject(Object& _object);
     void RenderAddObjectPopup();

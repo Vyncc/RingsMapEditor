@@ -59,7 +59,7 @@ public:
     }
 
     Vector GetSpawnWorldLocation() const {
-        return location + spawnLocation;
+        return location + spawnLocation_offset;
     }
 
 	bool IsStartCheckpoint() const {
@@ -84,7 +84,7 @@ public:
             {"id", id},
             {"checkpointType", static_cast<uint8_t>(checkpointType)},
             {"triggerVolume", triggerVolume.to_json()},
-            {"spawnLocation", spawnLocation},
+            {"spawnLocation_offset", spawnLocation_offset},
             {"spawnRotation", spawnRotation},
         };
     }
@@ -92,13 +92,12 @@ public:
     std::shared_ptr<Object> Clone() override {
         std::shared_ptr<Checkpoint> clonedCheckpoint = std::make_shared<Checkpoint>(*this);
         clonedCheckpoint->triggerVolume.onTouchCallback = (clonedCheckpoint->triggerVolume.onTouchCallback ? clonedCheckpoint->triggerVolume.onTouchCallback->Clone() : nullptr);
-        clonedCheckpoint->triggerVolume.UpdateVertices(); // Ensure vertices are updated after cloning
         return clonedCheckpoint;
     }
 
 	int id = 0;
 	CheckpointType checkpointType = CheckpointType::Mid;
     TriggerVolume_Box triggerVolume;
-	Vector spawnLocation;
+	Vector spawnLocation_offset;
 	Rotator spawnRotation;
 };
