@@ -156,8 +156,6 @@ void Mesh::SetLocation(const FVector& _newLocation)
 	{
 		collisionComp->SetRBPosition(_newLocation, FName());
 	}
-
-	LOG("set loccccc");
 }
 
 void Mesh::SetLocation(const Vector& _newLocation)

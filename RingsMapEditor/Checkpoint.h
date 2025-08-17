@@ -81,7 +81,7 @@ public:
             {"location", location},
             {"rotation", rotation},
             {"scale", scale},
-            {"id", id},
+            {"checkpointId", checkpointId},
             {"checkpointType", static_cast<uint8_t>(checkpointType)},
             {"triggerVolume", triggerVolume.to_json()},
             {"spawnLocation_offset", spawnLocation_offset},
@@ -89,13 +89,14 @@ public:
         };
     }
 
+    //Would be better if I Clone() for triggerVolume. But I would first need to store it as shared_ptr
     std::shared_ptr<Object> Clone() override {
         std::shared_ptr<Checkpoint> clonedCheckpoint = std::make_shared<Checkpoint>(*this);
         clonedCheckpoint->triggerVolume.onTouchCallback = (clonedCheckpoint->triggerVolume.onTouchCallback ? clonedCheckpoint->triggerVolume.onTouchCallback->Clone() : nullptr);
         return clonedCheckpoint;
     }
 
-	int id = 0;
+	int checkpointId = -1;
 	CheckpointType checkpointType = CheckpointType::Mid;
     TriggerVolume_Box triggerVolume;
 	Vector spawnLocation_offset;

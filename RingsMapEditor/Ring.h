@@ -9,7 +9,7 @@ public:
 		objectType = ObjectType::Ring;
 		name = "Ring";
 
-		id = -1;
+		ringId = -1;
 		mesh = Mesh();
 		mesh.enableCollisions = true;
 		triggerVolumeIn = TriggerVolume_Cylinder();
@@ -23,22 +23,8 @@ public:
 		objectType = ObjectType::Ring;
 		name = "Ring";
 
-		id = _id;
-		mesh = Mesh();
-		mesh.enableCollisions = true;
-		triggerVolumeIn = TriggerVolume_Cylinder();
-		triggerVolumeOut = TriggerVolume_Box();
-
-		SetLocation(Vector(0));
-		SetRotation(Rotator(0));
-	}
-
-	Ring(int _id, MeshInfos _meshInfos) {
-		objectType = ObjectType::Ring;
-		name = _meshInfos.name;
-
-		id = _id;
-		mesh = Mesh(_meshInfos);
+		ringId = _id;
+		mesh = Mesh("Ring Mesh");
 		mesh.enableCollisions = true;
 		triggerVolumeIn = TriggerVolume_Cylinder();
 		triggerVolumeOut = TriggerVolume_Box();
@@ -89,7 +75,7 @@ public:
             {"location", location},
             {"rotation", rotation},
             {"scale", scale},
-            {"id", id},
+            {"ringId", ringId},
             {"mesh", mesh.to_json()},
 			{"triggerVolumeIn", triggerVolumeIn.to_json()},
 			{"triggerVolumeIn_offset_location", triggerVolumeIn_offset_location},
@@ -100,14 +86,17 @@ public:
         };
     }
 
+	//Would be better if I Clone() for mesh, triggerVolumeIn, triggerVolumeOut. But I would first need to store them as shared_ptr
     std::shared_ptr<Object> Clone() override {
         std::shared_ptr<Ring> clonedRing = std::make_shared<Ring>(*this);
+		clonedRing->mesh.instance = nullptr;
+		clonedRing->triggerVolumeIn.onTouchCallback = (clonedRing->triggerVolumeIn.onTouchCallback ? clonedRing->triggerVolumeIn.onTouchCallback->Clone() : nullptr);
         clonedRing->triggerVolumeOut.onTouchCallback = (clonedRing->triggerVolumeOut.onTouchCallback ? clonedRing->triggerVolumeOut.onTouchCallback->Clone() : nullptr);
-        clonedRing->triggerVolumeIn.onTouchCallback = (clonedRing->triggerVolumeIn.onTouchCallback ? clonedRing->triggerVolumeIn.onTouchCallback->Clone() : nullptr);
+		clonedRing->UpdateTriggerVolumes();
         return clonedRing;
     }
 
-    int id = -1;
+    int ringId = -1;
 	Mesh mesh;
 
 	TriggerVolume_Cylinder triggerVolumeIn;

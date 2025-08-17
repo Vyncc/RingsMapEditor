@@ -147,7 +147,7 @@ class TeleportToCheckpoint : public TriggerFunction
 public:
     TeleportToCheckpoint() {
         name = "Teleport To Checkpoint";
-        description = "Destroy the actor";
+        description = "Telport to a checkpoint";
     }
 
     ~TeleportToCheckpoint() {}
@@ -161,13 +161,20 @@ public:
         }
         else
         {
-			if(checkpointId < 0 || checkpointId >= checkpoints.size())
-			{
-				LOG("[ERROR] Invalid checkpoint ID: {}", checkpointId);
-				return;
-			}
+            std::shared_ptr<Checkpoint> checkpoint = nullptr;
 
-			std::shared_ptr<Checkpoint> checkpoint = checkpoints[checkpointId];
+            auto it = std::find_if(checkpoints.begin(), checkpoints.end(),
+                [this](const std::shared_ptr<Checkpoint>& checkpoint) {
+                    return checkpoint->checkpointId == checkpointId;
+                });
+
+            if (it == checkpoints.end())
+            {
+                LOG("[ERROR] Invalid checkpoint ID: {}", checkpointId);
+                return;
+            }
+
+            checkpoint = *it;
             actor.SetLocation(checkpoint->GetSpawnWorldLocation());
             actor.SetRotation(checkpoint->spawnRotation);
             actor.SetVelocity(Vector(0.f, 0.f, 0.f));

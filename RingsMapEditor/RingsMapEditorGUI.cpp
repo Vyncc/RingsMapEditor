@@ -124,7 +124,7 @@ void RingsMapEditor::RenderProperties_Object(std::shared_ptr<Object>& _object)
 	}
 	else if (_object->objectType == ObjectType::Ring)
 	{
-		RenderProperties_Ring(*std::static_pointer_cast<Ring>(_object));
+		RenderProperties_Ring(reinterpret_cast<std::shared_ptr<Ring>&>(_object));
 	}
 	else
 	{
@@ -203,7 +203,6 @@ void RingsMapEditor::RenderProperties_Mesh(Mesh& _mesh)
 		if (_mesh.instance)
 		{
 			gameWrapper->Execute([this, &_mesh](GameWrapper* gw) {
-				SetActorScale3D(_mesh.instance, FVector{ _mesh.scale, _mesh.scale, _mesh.scale });
 				_mesh.SetScale3D(Vector(_mesh.scale, _mesh.scale, _mesh.scale));
 				});
 		}
@@ -385,10 +384,25 @@ void RingsMapEditor::RenderProperties_TriggerVolume_Cylinder(TriggerVolume_Cylin
 
 void RingsMapEditor::RenderProperties_Checkpoint(Checkpoint& _checkpoint)
 {
+	static bool idAlreadyInUse = false;
 	ImGui::Text("ID");
 	ImGui::SameLine();
 	ImGui::SetNextItemWidth(100.f);
-	ImGui::InputInt("##ID", &_checkpoint.id, 0, 100, ImGuiInputTextFlags_ReadOnly);
+	if (ImGui::InputInt("##ID", &_checkpoint.checkpointId, 0, 100))
+	{
+		auto it = std::find_if(checkpoints.begin(), checkpoints.end(),
+			[_checkpoint](const std::shared_ptr<Checkpoint>& checkpoint) {
+				return checkpoint->checkpointId == _checkpoint.checkpointId;
+			});
+
+		idAlreadyInUse = (it != checkpoints.end());
+	}
+
+	if (idAlreadyInUse)
+	{
+		ImGui::SameLine();
+		ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "ID already in use!");
+	}
 
 	ImGui::NewLine();
 
@@ -429,19 +443,36 @@ void RingsMapEditor::RenderProperties_Checkpoint(Checkpoint& _checkpoint)
 	ImGui::DragInt3("Spawn Rotation", &_checkpoint.spawnRotation.Pitch);
 }
 
-void RingsMapEditor::RenderProperties_Ring(Ring& _ring)
+void RingsMapEditor::RenderProperties_Ring(std::shared_ptr<Ring>& _ring)
 {
-	if (ImGui::DragFloat3("Location", &_ring.location.X))
+	ImGui::Text("ID");
+	ImGui::SameLine();
+	ImGui::SetNextItemWidth(100.f);
+	ImGui::InputInt("##ID", &_ring->ringId, 0, 100);
+
+	auto it = std::find_if(rings.begin(), rings.end(),
+		[&_ring](const std::shared_ptr<Ring>& ring) {
+			return ring != _ring && ring->ringId == _ring->ringId;
+		});
+
+	bool ringIdAlreadyInUse = (it != rings.end());
+	if (ringIdAlreadyInUse)
+	{
+		ImGui::SameLine();
+		ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "ID already in use!");
+	}
+
+	if (ImGui::DragFloat3("Location", &_ring->location.X))
 	{
 		gameWrapper->Execute([this, &_ring](GameWrapper* gw) {
-			_ring.SetLocation(_ring.location);
+			_ring->SetLocation(_ring->location);
 			});
 	}
 
-	if (ImGui::DragInt3("Rotation", &_ring.rotation.Pitch))
+	if (ImGui::DragInt3("Rotation", &_ring->rotation.Pitch))
 	{
 		gameWrapper->Execute([this, &_ring](GameWrapper* gw) {
-			_ring.SetRotation(_ring.rotation);
+			_ring->SetRotation(_ring->rotation);
 			});
 	}
 
@@ -449,42 +480,42 @@ void RingsMapEditor::RenderProperties_Ring(Ring& _ring)
 
 	ImGui::Text("Mesh");
 	ImGui::SameLine();
-	if (ImGui::BeginCombo("##Mesh", _ring.mesh.meshInfos.name.c_str()))
+	if (ImGui::BeginCombo("##Mesh", _ring->mesh.meshInfos.name.c_str()))
 	{
-		if (ImGui::Selectable("", (_ring.mesh.meshInfos.name == "")))
+		if (ImGui::Selectable("", (_ring->mesh.meshInfos.name == "")))
 		{
-			_ring.mesh.meshInfos = MeshInfos();
+			_ring->mesh.meshInfos = MeshInfos();
 		}
 
 		for (const auto& mesh : AvailableMeshes)
 		{
-			if (ImGui::Selectable(mesh.name.c_str(), (_ring.mesh.meshInfos.name == mesh.name)))
+			if (ImGui::Selectable(mesh.name.c_str(), (_ring->mesh.meshInfos.name == mesh.name)))
 			{
-				_ring.mesh.meshInfos = mesh;
+				_ring->mesh.meshInfos = mesh;
 			}
 		}
 		ImGui::EndCombo();
 	}
 
 	//check if the mesh of the selected object exist in the available meshes
-	if (std::find_if(AvailableMeshes.begin(), AvailableMeshes.end(), [&](const MeshInfos& m) { return m.meshPath == _ring.mesh.meshInfos.meshPath; }) == AvailableMeshes.end())
+	if (std::find_if(AvailableMeshes.begin(), AvailableMeshes.end(), [&](const MeshInfos& m) { return m.meshPath == _ring->mesh.meshInfos.meshPath; }) == AvailableMeshes.end())
 	{
 		ImGui::SameLine();
 		ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Mesh not found!");
 	}
 
-	RenderInputText("Mesh Path", &_ring.mesh.meshInfos.meshPath, ImGuiInputTextFlags_ReadOnly);
+	RenderInputText("Mesh Path", &_ring->mesh.meshInfos.meshPath, ImGuiInputTextFlags_ReadOnly);
 
 	ImGui::NewLine();
 
 	ImGui::PushID("In Trigger Volume");
 	ImGui::Text("In Trigger Volume");
 
-	if(ImGui::DragFloat3("Location ##In Trigger Volume", &_ring.triggerVolumeIn_offset_location.X))
+	if(ImGui::DragFloat3("Location ##In Trigger Volume", &_ring->triggerVolumeIn_offset_location.X))
 	{
-		_ring.UpdateTriggerVolumes();
+		_ring->UpdateTriggerVolumes();
 	}
-	RenderProperties_TriggerVolume_Cylinder(_ring.triggerVolumeIn);
+	RenderProperties_TriggerVolume_Cylinder(_ring->triggerVolumeIn);
 	ImGui::PopID();
 
 	ImGui::NewLine();
@@ -492,16 +523,16 @@ void RingsMapEditor::RenderProperties_Ring(Ring& _ring)
 	ImGui::PushID("Out Trigger Volume");
 	ImGui::Text("Out Trigger Volume");
 
-	if (ImGui::DragFloat3("Location ##Out Trigger Volume", &_ring.triggerVolumeOut_offset_location.X))
+	if (ImGui::DragFloat3("Location ##Out Trigger Volume", &_ring->triggerVolumeOut_offset_location.X))
 	{
-		_ring.UpdateTriggerVolumes();
+		_ring->UpdateTriggerVolumes();
 	}
-	RenderProperties_TriggerVolume_Box(_ring.triggerVolumeOut);
+	RenderProperties_TriggerVolume_Box(_ring->triggerVolumeOut);
 	ImGui::PopID();
 
 	ImGui::NewLine();
 
-	bool CantSpawnObject = !IsInGame() || _ring.mesh.IsMeshPathEmpty() || _ring.mesh.IsSpawned();
+	bool CantSpawnObject = !IsInGame() || _ring->mesh.IsMeshPathEmpty() || _ring->mesh.IsSpawned();
 	std::string errorMessage = "";
 
 	if (CantSpawnObject)
@@ -512,15 +543,15 @@ void RingsMapEditor::RenderProperties_Ring(Ring& _ring)
 
 	if (!IsInGame())
 		errorMessage = "You must be in a game";
-	else if (_ring.mesh.IsMeshPathEmpty())
+	else if (_ring->mesh.IsMeshPathEmpty())
 		errorMessage = "Object path is empty";
-	else if (_ring.mesh.IsSpawned())
+	else if (_ring->mesh.IsSpawned())
 		errorMessage = "Object is already spawned";
 
 	if (ImGui::Button("Spawn Object"))
 	{
 		gameWrapper->Execute([this, &_ring](GameWrapper* gw) {
-			SpawnMesh(_ring.mesh);
+			SpawnMesh(_ring->mesh);
 			});
 	}
 
@@ -558,6 +589,14 @@ std::shared_ptr<Object> RingsMapEditor::CopyObject(Object& _object)
 	else if (clonedObject->objectType == ObjectType::TriggerVolume)
 	{
 		triggerVolumes.emplace_back(std::static_pointer_cast<TriggerVolume>(clonedObject));
+	}
+	else if (clonedObject->objectType == ObjectType::Checkpoint)
+	{
+		checkpoints.emplace_back(std::static_pointer_cast<Checkpoint>(clonedObject));
+	}
+	else if (clonedObject->objectType == ObjectType::Ring)
+	{
+		rings.emplace_back(std::static_pointer_cast<Ring>(clonedObject));
 	}
 
 	SelectLastObject();

@@ -92,6 +92,13 @@ void RingsMapEditor::LoadConfig(const std::filesystem::path& filePath)
 		for (const auto& item : arr)
 		{
 			std::shared_ptr<Object> loadedObject = FromJson_Object(item);
+			if (!loadedObject)
+			{
+				LOG("[ERROR]Couldn't load object : {}", item.dump(4));
+				continue;
+			}
+
+			LOG("loaded object : {}", loadedObject->name);
 			objects.push_back(loadedObject);
 
 			if (loadedObject->objectType == ObjectType::Mesh)
@@ -100,6 +107,8 @@ void RingsMapEditor::LoadConfig(const std::filesystem::path& filePath)
 				triggerVolumes.push_back(std::static_pointer_cast<TriggerVolume>(loadedObject));
 			else if(loadedObject->objectType == ObjectType::Checkpoint)
 				checkpoints.push_back(std::static_pointer_cast<Checkpoint>(loadedObject));
+			else if(loadedObject->objectType == ObjectType::Ring)
+				rings.push_back(std::static_pointer_cast<Ring>(loadedObject));
 		}
 
 		LOG("Loaded config successfully from: {}", filePath.string());
@@ -184,8 +193,11 @@ void RingsMapEditor::OnGameFirstTick(std::string eventName)
 			{
 				if (object->objectType == ObjectType::Mesh)
 				{
-					std::shared_ptr<Mesh> mesh = std::static_pointer_cast<Mesh>(object);
-					SpawnMesh(*mesh);
+					SpawnMesh(*std::static_pointer_cast<Mesh>(object));
+				}
+				else if (object->objectType == ObjectType::Ring)
+				{
+					SpawnMesh(std::static_pointer_cast<Ring>(object)->mesh);
 				}
 			}
 		}, 0.1f);
@@ -222,18 +234,37 @@ bool RingsMapEditor::SetCurrentCheckpoint(std::shared_ptr<Checkpoint> _checkpoin
 	if (currentCheckpoint != _checkpoint)
 	{
 		currentCheckpoint = _checkpoint;
-		LOG("Current checkpoint set to: {} | {}", _checkpoint->id, _checkpoint->name);
+		LOG("Current checkpoint set to: {} | {}", _checkpoint->checkpointId, _checkpoint->name);
 		return true;
 	}
 
 	return false;
 }
 
+void RingsMapEditor::TeleportToCurrentCheckpoint()
+{
+	currentRingId = -1;
+
+	CarWrapper localCar = gameWrapper->GetLocalCar();
+	if (!localCar)
+	{
+		LOG("[ERROR]localCar is NULL!");
+		return;
+	}
+
+	if (currentCheckpoint)
+	{
+		localCar.SetLocation(currentCheckpoint->GetSpawnWorldLocation());
+		localCar.SetRotation(currentCheckpoint->spawnRotation);
+		localCar.SetVelocity(Vector(0.f, 0.f, 0.f));
+	}
+}
+
 std::shared_ptr<Object> RingsMapEditor::AddObject(ObjectType _objectType)
 {
 	if (_objectType == ObjectType::Mesh)
 	{
-		std::shared_ptr<Mesh> newMesh = std::make_shared<Mesh>("New Mesh");
+		std::shared_ptr<Mesh> newMesh = std::make_shared<Mesh>();
 		objects.emplace_back(newMesh);
 		meshes.emplace_back(newMesh);
 		SelectLastObject();
@@ -250,7 +281,7 @@ std::shared_ptr<Object> RingsMapEditor::AddObject(ObjectType _objectType)
 	else if (_objectType == ObjectType::Checkpoint)
 	{
 		std::shared_ptr<Checkpoint> newCheckpoint = std::make_shared<Checkpoint>();
-		newCheckpoint->id = checkpoints.size() + 1; // Assign a new ID based on the current size
+		newCheckpoint->checkpointId = checkpoints.size() + 1; // Assign a new ID based on the current size
 		objects.emplace_back(newCheckpoint);
 		checkpoints.emplace_back(newCheckpoint);
 		SelectLastObject();
@@ -314,25 +345,20 @@ void RingsMapEditor::CheckTriggerVolumes()
 	if (!IsInRaceMode())
 		return;
 
-	ServerWrapper server = gameWrapper->GetCurrentGameState();
-	if (!server) return;
-
-	ArrayWrapper<CarWrapper> cars = server.GetCars();
+	CarWrapper localCar = gameWrapper->GetLocalCar();
+	if (!localCar)
+	{
+		//LOG("[ERROR]localCar is NULL!");
+		return;
+	}
 
 	for (std::shared_ptr<TriggerVolume>& volume : triggerVolumes)
 	{
-		for (int i = 0; i < cars.Count(); i++)
+		if (volume->IsPointInside(localCar.GetLocation()))
 		{
-			CarWrapper car = cars.Get(i);
-			if (!car) continue;
-
-			if (volume->IsPointInside(car.GetLocation()))
-			{
-				volume->OnTouch(car);
-			}
+			volume->OnTouch(localCar);
 		}
 	}
-
 }
 
 void RingsMapEditor::CheckCheckpoints()
@@ -340,32 +366,62 @@ void RingsMapEditor::CheckCheckpoints()
 	if (!IsInRaceMode())
 		return;
 
-	ServerWrapper server = gameWrapper->GetCurrentGameState();
-	if (!server) return;
-
-	ArrayWrapper<CarWrapper> cars = server.GetCars();
+	CarWrapper localCar = gameWrapper->GetLocalCar();
+	if (!localCar)
+	{
+		//LOG("[ERROR]localCar is NULL!");
+		return;
+	}
 
 	for (std::shared_ptr<Checkpoint>& checkpoint : checkpoints)
 	{
-		for (int i = 0; i < cars.Count(); i++)
+		if (checkpoint->triggerVolume.IsPointInside(localCar.GetLocation()))
 		{
-			CarWrapper car = cars.Get(i);
-			if (!car) continue;
-
-			if (checkpoint->triggerVolume.IsPointInside(car.GetLocation()))
+			if (SetCurrentCheckpoint(checkpoint))
 			{
-				if (SetCurrentCheckpoint(checkpoint))
+				if (checkpoint->IsStartCheckpoint())
 				{
-					if (checkpoint->IsStartCheckpoint())
-					{
-						raceTimer.Start();
-						LOG("starting timer");
-					}
-					else if (checkpoint->IsEndCheckpoint())
-					{
-						raceTimer.Stop();
-					}
+					raceTimer.Start();
+					LOG("Starting timer");
 				}
+				else if (checkpoint->IsEndCheckpoint())
+				{
+					raceTimer.Stop();
+					LOG("Stopping timer");
+				}
+			}
+		}
+	}
+}
+
+void RingsMapEditor::CheckRings()
+{
+	if (!IsInRaceMode())
+		return;
+
+	CarWrapper localCar = gameWrapper->GetLocalCar();
+	if (!localCar)
+	{
+		//LOG("[ERROR]localCar is NULL!");
+		return;
+	}
+
+	for (std::shared_ptr<Ring>& ring : rings)
+	{
+		//Car pass through the ring
+		if (ring->triggerVolumeIn.IsPointInside(localCar.GetLocation()))
+		{
+			currentRingId = ring->ringId;
+			LOG("current ring : {}", currentRingId);
+		}
+
+		//Car pass behind the ring, checking if the car didn't pass through the ring
+		if (ring->triggerVolumeOut.IsPointInside(localCar.GetLocation()))
+		{
+			if (currentRingId != ring->ringId)
+			{
+				LOG("Didn't go through the ring! teleporting back to current checkpoint");
+				TeleportToCurrentCheckpoint();
 			}
 		}
 	}
@@ -378,6 +434,7 @@ void RingsMapEditor::OnTick(std::string eventName)
 
 	CheckTriggerVolumes();
 	CheckCheckpoints();
+	CheckRings();
 }
 
 void RingsMapEditor::RenderTriggerVolumes(CanvasWrapper canvas)
@@ -499,12 +556,17 @@ std::shared_ptr<Object> RingsMapEditor::FromJson_Object(const nlohmann::json& j)
 
 	if (objectType == ObjectType::Mesh)
 		object = FromJson_Mesh(j);
-	else if(objectType == ObjectType::TriggerVolume)
+	else if (objectType == ObjectType::TriggerVolume)
 		object = FromJson_TriggerVolume(j);
-	else if(objectType == ObjectType::Checkpoint)
+	else if (objectType == ObjectType::Checkpoint)
 		object = FromJson_Checkpoint(j);
+	else if (objectType == ObjectType::Ring)
+		object = FromJson_Ring(j);
 	else
-		throw std::runtime_error("Unknown object type: " + std::to_string(static_cast<uint8_t>(objectType)));
+	{
+		LOG("[ERROR]Unknown object type: {}", std::to_string(static_cast<uint8_t>(objectType)));
+		return nullptr;
+	}
 
 	if (object)
 	{
@@ -573,7 +635,7 @@ std::shared_ptr<TriggerVolume_Cylinder> RingsMapEditor::FromJson_TriggerVolume_C
 	std::shared_ptr<TriggerVolume_Cylinder> triggerVolumeCylinder = std::make_shared<TriggerVolume_Cylinder>();
 
 	triggerVolumeCylinder->radius = j.at("radius").get<float>();
-	triggerVolumeCylinder->height = j.at("size").get<float>();
+	triggerVolumeCylinder->height = j.at("height").get<float>();
 
 	return triggerVolumeCylinder;
 }
@@ -582,9 +644,9 @@ std::shared_ptr<Checkpoint> RingsMapEditor::FromJson_Checkpoint(const nlohmann::
 {
 	std::shared_ptr<Checkpoint> checkpoint = std::make_shared<Checkpoint>();
 
-	checkpoint->id = j.at("id").get<int>();
+	checkpoint->checkpointId = j.at("checkpointId").get<int>();
 	checkpoint->checkpointType = static_cast<CheckpointType>(j.at("checkpointType").get<uint8_t>());
-	checkpoint->triggerVolume = *FromJson_TriggerVolume_Box(j["triggerVolume"]);
+	checkpoint->triggerVolume = *static_pointer_cast<TriggerVolume_Box>(FromJson_Object(j["triggerVolume"]));
 	checkpoint->spawnLocation_offset = j.at("spawnLocation_offset").get<Vector>();
 	checkpoint->spawnRotation = j.at("spawnRotation").get<Rotator>();
 
@@ -593,116 +655,18 @@ std::shared_ptr<Checkpoint> RingsMapEditor::FromJson_Checkpoint(const nlohmann::
 
 std::shared_ptr<Ring> RingsMapEditor::FromJson_Ring(const nlohmann::json& j)
 {
+	LOG("creating ring");
 	std::shared_ptr<Ring> ring = std::make_shared<Ring>();
+	LOG("ring created");
 
-	ring->id = j.at("id").get<int>();
-	ring->mesh = *FromJson_Mesh(j["mesh"]);
-	ring->triggerVolumeIn = *FromJson_TriggerVolume_Cylinder(j["triggerVolumeIn"]);
-	ring->triggerVolumeOut = *FromJson_TriggerVolume_Box(j["triggerVolumeOut"]);
+	ring->ringId = j.at("ringId").get<int>();
+	ring->mesh = *static_pointer_cast<Mesh>(FromJson_Object(j["mesh"]));
+	ring->triggerVolumeIn = *static_pointer_cast<TriggerVolume_Cylinder>(FromJson_Object(j["triggerVolumeIn"]));
+	ring->triggerVolumeOut = *static_pointer_cast<TriggerVolume_Box>(FromJson_Object(j["triggerVolumeOut"]));
+
+	LOG("triggervolumes created");
 
 	return ring;
-}
-
-void RingsMapEditor::EnableCollisions(AKActor* _kActor)
-{
-	if (!_kActor)
-	{
-		LOG("[ERROR]AKActor is null!");
-		return;
-	}
-
-	UStaticMeshComponent* collisionComp = _kActor->StaticMeshComponent;
-	if (!collisionComp)
-	{
-		LOG("[ERROR]Collision component is null!");
-		return;
-	}
-
-	collisionComp->SetRBChannel(ERBCollisionChannel::RBCC_Pawn);
-	collisionComp->SetBlockRigidBody(true);
-}
-
-void RingsMapEditor::DisableCollisions(AKActor* _kActor)
-{
-	if (!_kActor)
-	{
-		LOG("[ERROR]AKActor is null!");
-		return;
-	}
-
-	UStaticMeshComponent* collisionComp = _kActor->StaticMeshComponent;
-	if (!collisionComp)
-	{
-		LOG("[ERROR]Collision component is null!");
-		return;
-	}
-
-	collisionComp->SetRBChannel(ERBCollisionChannel::RBCC_Nothing);
-	collisionComp->SetBlockRigidBody(false);
-}
-
-void RingsMapEditor::EnablePhysics(AKActor* _kActor)
-{
-	if (_kActor)
-		_kActor->SetPhysics(EPhysics::PHYS_RigidBody);
-}
-
-void RingsMapEditor::DisablePhysics(AKActor* _kActor)
-{
-	if (_kActor)
-		_kActor->SetPhysics(EPhysics::PHYS_SoftBody);
-}
-
-void RingsMapEditor::SetActorLocation(AActor* _actor, const FVector& _newLocation)
-{
-	if (!_actor)
-	{
-		LOG("[ERROR]AKActor is null!");
-		return;
-	}
-
-	_actor->SetLocation(_newLocation);
-
-	UPrimitiveComponent* collisionComp = _actor->CollisionComponent;
-	if (collisionComp)
-	{
-		collisionComp->SetRBPosition(_newLocation, FName());
-	}
-}
-
-void RingsMapEditor::SetActorRotation(AActor* _actor, const FRotator& _newRotation)
-{
-	if (!_actor)
-	{
-		LOG("[ERROR]AKActor is null!");
-		return;
-	}
-
-	_actor->SetRotation(_newRotation);
-
-	UPrimitiveComponent* collisionComp = _actor->CollisionComponent;
-	if (collisionComp)
-	{
-		collisionComp->SetRBRotation(_newRotation, FName());
-	}
-}
-
-//Not working for the collision component
-void RingsMapEditor::SetActorScale3D(AActor* _actor, const FVector& _newScale3D)
-{
-	if (!_actor)
-	{
-		LOG("[ERROR]AKActor is null!");
-		return;
-	}
-
-	_actor->SetDrawScale3D(_newScale3D);
-
-	UPrimitiveComponent* collisionComp = _actor->CollisionComponent;
-	if (collisionComp)
-	{
-		collisionComp->SetScale3D(_newScale3D);
-	}
 }
 
 void RingsMapEditor::SpawnMesh(Mesh& _mesh)

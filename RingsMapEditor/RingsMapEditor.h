@@ -56,7 +56,7 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
 
 
     std::vector<std::shared_ptr<Ring>> rings;
-    int currentRingID = -1;
+    int currentRingId = -1;
 
     int selectedObjectIndex = -1;
 
@@ -68,6 +68,7 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
     void OnCarSpawn(CarWrapper caller, void* params, std::string eventName);
 
     bool SetCurrentCheckpoint(std::shared_ptr<Checkpoint> _checkpoint);
+    void TeleportToCurrentCheckpoint();
 
     std::shared_ptr<Object> AddObject(ObjectType _objectType);
 	void SelectLastObject();
@@ -91,6 +92,7 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
 
     void CheckTriggerVolumes();
     void CheckCheckpoints();
+    void CheckRings();
     void OnTick(std::string eventName);
     void RenderTriggerVolumes(CanvasWrapper canvas);
     void RenderCheckpoints(CanvasWrapper canvas);
@@ -99,13 +101,6 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
     void RenderCanvas(CanvasWrapper canvas);
 
 
-    void EnableCollisions(AKActor* _kActor);
-    void DisableCollisions(AKActor* _kActor);
-    void EnablePhysics(AKActor* _kActor);
-    void DisablePhysics(AKActor* _kActor);
-    void SetActorLocation(AActor* _actor, const FVector& _newLocation);
-    void SetActorRotation(AActor* _actor, const FRotator& _newRotation);
-    void SetActorScale3D(AActor* _actor, const FVector& _newScale3D);
     void SpawnMesh(Mesh& _mesh);
     void DestroyAllMeshes();
     void RemoveObject(int objectIndex);
@@ -118,7 +113,7 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
     void RenderProperties_TriggerVolume_Box(TriggerVolume_Box& _volume);
     void RenderProperties_TriggerVolume_Cylinder(TriggerVolume_Cylinder& _volume);
     void RenderProperties_Checkpoint(Checkpoint& _checkpoint);
-    void RenderProperties_Ring(Ring& _ring);
+    void RenderProperties_Ring(std::shared_ptr<Ring>& _ring);
     void RenderInputText(std::string _label, std::string* _value, ImGuiInputTextFlags _flags = 0);
     std::shared_ptr<Object> CopyObject(Object& _object);
     void RenderAddObjectPopup();
