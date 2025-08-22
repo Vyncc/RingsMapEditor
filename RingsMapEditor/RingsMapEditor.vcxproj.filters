@@ -192,6 +192,9 @@
     <ClCompile Include="RenderingTools\Objects\Box.cpp">
       <Filter>Rendering Tools\Objects</Filter>
     </ClCompile>
+    <ClCompile Include="ObjectManager.cpp">
+      <Filter>Plugin\src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imgui\imgui_rangeslider.h">
@@ -433,6 +436,12 @@
     </ClInclude>
     <ClInclude Include="RenderingTools\Objects\Box.h">
       <Filter>Rendering Tools\Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="BuildMode.h">
+      <Filter>Plugin\header</Filter>
+    </ClInclude>
+    <ClInclude Include="ObjectManager.h">
+      <Filter>Plugin\header</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

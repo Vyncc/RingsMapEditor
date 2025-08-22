@@ -104,6 +104,7 @@
     <ClCompile Include="imgui\imgui_timeline.cpp" />
     <ClCompile Include="imgui\imgui_widgets.cpp" />
     <ClCompile Include="Mesh.cpp" />
+    <ClCompile Include="ObjectManager.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
@@ -143,6 +144,7 @@
     <ClCompile Include="RLSDK\SDK_HEADERS\XAudio2_classes.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BuildMode.h" />
     <ClInclude Include="Checkpoint.h" />
     <ClInclude Include="CustomWidgets.hpp" />
     <ClInclude Include="imgui\imconfig.h" />
@@ -162,6 +164,7 @@
     <ClInclude Include="logging.h" />
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="Object.h" />
+    <ClInclude Include="ObjectManager.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="GuiBase.h" />
     <ClInclude Include="RenderingTools\Extra\CanvasExtensions.h" />

@@ -9,9 +9,9 @@
 constexpr auto plugin_version = stringify(VERSION_MAJOR) "." stringify(VERSION_MINOR) "." stringify(VERSION_PATCH) "." stringify(VERSION_BUILD);
 
 
-#include "Ring.h"
-#include "TriggerFunctions.h"
+#include "ObjectManager.h"
 #include "Timer.h"
+#include "BuildMode.h"
 
 enum Mode : uint8_t
 {
@@ -19,16 +19,14 @@ enum Mode : uint8_t
     Race = 1
 };
 
-
 class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
 	,public SettingsWindowBase // Uncomment if you wanna render your own tab in the settings menu
 	,public PluginWindowBase // Uncomment if you want to render your own plugin window
 {
-    TriggerVolume_Cylinder cylinder;
-
     std::filesystem::path DataFolderPath;
     std::filesystem::path RLCookedPCConsolePath;
     std::filesystem::path MeshesPath;
+    void InitPaths();
 
     bool SaveConfig(const std::string& fileName);
     void LoadConfig(const std::filesystem::path& filePath);
@@ -39,28 +37,14 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
     void StartEditorMode();
     void StartRaceMode();
 
+    std::shared_ptr<ObjectManager> objectManager = nullptr;
+    std::shared_ptr<BuildMode> buildMode = nullptr;
 
+    Timer raceTimer;
     bool isStartingRace = false;
 
-	Timer raceTimer;
-
-    std::vector<std::shared_ptr<Object>> objects;
-    std::vector<std::shared_ptr<Mesh>> meshes;
-    std::vector<std::shared_ptr<TriggerVolume>> triggerVolumes;
-    std::map<std::string, std::shared_ptr<TriggerFunction>> triggerFunctionsMap = {
-        { "Set Location", std::make_shared<SetLocation>()},
-        { "Set Rotation", std::make_shared<SetRotation>() },
-        { "Destroy", std::make_shared<Destroy>() },
-        { "Teleport To Checkpoint", std::make_shared<TeleportToCheckpoint>() }
-    };
-
-
-    std::vector<std::shared_ptr<Ring>> rings;
     int currentRingId = -1;
-
     int selectedObjectIndex = -1;
-
-    void ConvertTriggerVolume(std::shared_ptr<TriggerVolume>& _triggerVolume, TriggerVolumeType _triggerVolumeType);
 
     void OnGameCreated(std::string eventName);
     void OnGameFirstTick(std::string eventName);
@@ -70,11 +54,9 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
     bool SetCurrentCheckpoint(std::shared_ptr<Checkpoint> _checkpoint);
     void TeleportToCurrentCheckpoint();
 
-    std::shared_ptr<Object> AddObject(ObjectType _objectType);
 	void SelectLastObject();
 
-    void InitPaths();
-
+    std::vector<MeshInfos> AvailableMeshes;
     std::vector<MeshInfos> GetAvailableMeshes();
 
     std::shared_ptr<Object> FromJson_Object(const nlohmann::json& j);
@@ -103,7 +85,8 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
 
     void SpawnMesh(Mesh& _mesh);
     void DestroyAllMeshes();
-    void RemoveObject(int objectIndex);
+    void AddObject(ObjectType _objectType);
+    void RemoveObject(const int& _objectIndex);
 
     bool IsInGame();
 
@@ -115,7 +98,7 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
     void RenderProperties_Checkpoint(Checkpoint& _checkpoint);
     void RenderProperties_Ring(std::shared_ptr<Ring>& _ring);
     void RenderInputText(std::string _label, std::string* _value, ImGuiInputTextFlags _flags = 0);
-    std::shared_ptr<Object> CopyObject(Object& _object);
+    void CopyObject(Object& _object);
     void RenderAddObjectPopup();
     void RenderSaveConfigPopup();
     void RenderLoadConfigPopup();

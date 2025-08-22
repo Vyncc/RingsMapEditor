@@ -17,6 +17,8 @@ void RingsMapEditor::onLoad()
 	InitPaths();
 
 	AvailableMeshes = GetAvailableMeshes();
+	objectManager = std::make_shared<ObjectManager>();
+	buildMode = std::make_shared<BuildMode>(objectManager, AvailableMeshes);
 
 	//cvarManager->registerNotifier("my_aweseome_notifier", [&](std::vector<std::string> args) {
 	//	LOG("Hello notifier!");
@@ -26,6 +28,11 @@ void RingsMapEditor::onLoad()
 	//	LOG("Your hook got called and the ball went POOF");
 	//});
 
+
+	cvarManager->registerNotifier("ringsmapeditor_build_mode_toggle", [&](std::vector<std::string> args) {
+		buildMode->ToggleBuildMode();
+	}, "", 0);
+
 	gameWrapper->HookEventPost("Function TAGame.GameEvent_TA.PostBeginPlay", std::bind(&RingsMapEditor::OnGameCreated, this, std::placeholders::_1));
 	gameWrapper->HookEvent("Function TAGame.GameEvent_Soccar_TA.Destroyed", std::bind(&RingsMapEditor::OnGameDestroyed, this, std::placeholders::_1));
 
@@ -34,6 +41,32 @@ void RingsMapEditor::onLoad()
 
 	gameWrapper->HookEvent("Function Engine.GameViewportClient.Tick", std::bind(&RingsMapEditor::OnTick, this, std::placeholders::_1));
 	gameWrapper->RegisterDrawable(bind(&RingsMapEditor::RenderCanvas, this, std::placeholders::_1));
+}
+
+void RingsMapEditor::InitPaths()
+{
+	DataFolderPath = gameWrapper->GetDataFolder() / "RingsMapEditor";
+	if (!std::filesystem::exists(DataFolderPath))
+	{
+		LOG("Data folder does not exist, creating: {}", DataFolderPath.string());
+		std::filesystem::create_directories(DataFolderPath);
+	}
+
+	std::string RLWin64_Path = std::filesystem::current_path().string();
+	RLCookedPCConsolePath = RLWin64_Path.substr(0, RLWin64_Path.length() - 14) + "TAGame\\CookedPCConsole\\mods\\RingsMapEditor";
+	LOG("CookedPCConsole Path: {}", RLCookedPCConsolePath.string());
+	if (!std::filesystem::exists(RLCookedPCConsolePath))
+	{
+		LOG("CookedPCConsole\\mods\\RingsMapEditor does not exist, creating: {}", RLCookedPCConsolePath.string());
+		std::filesystem::create_directories(RLCookedPCConsolePath);
+	}
+
+	MeshesPath = RLCookedPCConsolePath / "Meshes";
+	if (!std::filesystem::exists(MeshesPath))
+	{
+		LOG("Meshes folder does not exist, creating: {}", MeshesPath.string());
+		std::filesystem::create_directories(MeshesPath);
+	}
 }
 
 bool RingsMapEditor::SaveConfig(const std::string& fileName)
@@ -47,7 +80,7 @@ bool RingsMapEditor::SaveConfig(const std::string& fileName)
 	try
 	{
 		nlohmann::json objects_json = nlohmann::json::array();
-		for (const std::shared_ptr<Object>& object : objects) {
+		for (const std::shared_ptr<Object>& object : objectManager->GetObjects()) {
 			if (object)
 			{
 				objects_json.push_back(object->to_json());
@@ -82,7 +115,7 @@ void RingsMapEditor::LoadConfig(const std::filesystem::path& filePath)
 		return;
 	}
 
-	objects.clear();
+	objectManager->ClearObjects();
 
 	try
 	{
@@ -99,16 +132,16 @@ void RingsMapEditor::LoadConfig(const std::filesystem::path& filePath)
 			}
 
 			LOG("loaded object : {}", loadedObject->name);
-			objects.push_back(loadedObject);
+			objectManager->AddObject(loadedObject);
 
 			if (loadedObject->objectType == ObjectType::Mesh)
-				meshes.push_back(std::static_pointer_cast<Mesh>(loadedObject));
+				objectManager->AddMesh(std::static_pointer_cast<Mesh>(loadedObject));
 			else if(loadedObject->objectType == ObjectType::TriggerVolume)
-				triggerVolumes.push_back(std::static_pointer_cast<TriggerVolume>(loadedObject));
+				objectManager->AddTriggerVolume(std::static_pointer_cast<TriggerVolume>(loadedObject));
 			else if(loadedObject->objectType == ObjectType::Checkpoint)
-				checkpoints.push_back(std::static_pointer_cast<Checkpoint>(loadedObject));
+				objectManager->AddCheckpoint(std::static_pointer_cast<Checkpoint>(loadedObject));
 			else if(loadedObject->objectType == ObjectType::Ring)
-				rings.push_back(std::static_pointer_cast<Ring>(loadedObject));
+				objectManager->AddRing(std::static_pointer_cast<Ring>(loadedObject));
 		}
 
 		LOG("Loaded config successfully from: {}", filePath.string());
@@ -158,26 +191,6 @@ void RingsMapEditor::StartRaceMode()
 		});
 }
 
-void RingsMapEditor::ConvertTriggerVolume(std::shared_ptr<TriggerVolume>& _triggerVolume, TriggerVolumeType _triggerVolumeType)
-{
-	std::shared_ptr<TriggerVolume> oldPtr = _triggerVolume;
-
-	if (_triggerVolumeType == TriggerVolumeType::Box)
-	{
-		_triggerVolume = std::make_shared<TriggerVolume_Box>(*_triggerVolume);
-	}
-	else if (_triggerVolumeType == TriggerVolumeType::Cylinder)
-	{
-		_triggerVolume = std::make_shared<TriggerVolume_Cylinder>(*_triggerVolume);
-	}
-
-	auto it = std::find(triggerVolumes.begin(), triggerVolumes.end(), oldPtr);
-	if (it != triggerVolumes.end())
-	{
-		*it = _triggerVolume; // point to new object
-	}
-}
-
 void RingsMapEditor::OnGameCreated(std::string eventName)
 {
 	gameWrapper->HookEvent("Function TAGame.GameEvent_TA.GetPlayerHUDPosition", std::bind(&RingsMapEditor::OnGameFirstTick, this, std::placeholders::_1));
@@ -189,7 +202,7 @@ void RingsMapEditor::OnGameFirstTick(std::string eventName)
 
 	gameWrapper->SetTimeout([this](GameWrapper* gw)
 		{
-			for (std::shared_ptr<Object>& object : objects)
+			for (std::shared_ptr<Object>& object : objectManager->GetObjects())
 			{
 				if (object->objectType == ObjectType::Mesh)
 				{
@@ -260,50 +273,10 @@ void RingsMapEditor::TeleportToCurrentCheckpoint()
 	}
 }
 
-std::shared_ptr<Object> RingsMapEditor::AddObject(ObjectType _objectType)
-{
-	if (_objectType == ObjectType::Mesh)
-	{
-		std::shared_ptr<Mesh> newMesh = std::make_shared<Mesh>();
-		objects.emplace_back(newMesh);
-		meshes.emplace_back(newMesh);
-		SelectLastObject();
-		return newMesh;
-	}
-	else if (_objectType == ObjectType::TriggerVolume)
-	{
-		std::shared_ptr<TriggerVolume_Box> newTriggerVolume = std::make_shared<TriggerVolume_Box>();
-		objects.emplace_back(newTriggerVolume);
-		triggerVolumes.emplace_back(newTriggerVolume);
-		SelectLastObject();
-		return newTriggerVolume;
-	}
-	else if (_objectType == ObjectType::Checkpoint)
-	{
-		std::shared_ptr<Checkpoint> newCheckpoint = std::make_shared<Checkpoint>();
-		newCheckpoint->checkpointId = checkpoints.size() + 1; // Assign a new ID based on the current size
-		objects.emplace_back(newCheckpoint);
-		checkpoints.emplace_back(newCheckpoint);
-		SelectLastObject();
-		return newCheckpoint;
-	}
-	else if (_objectType == ObjectType::Ring)
-	{
-		std::shared_ptr<Ring_Small> newRing = std::make_shared<Ring_Small>(rings.size() + 1);
-		objects.emplace_back(newRing);
-		rings.emplace_back(newRing);
-		SelectLastObject();
-		return newRing;
-	}
-	else
-	{
-		LOG("[ERROR] Unsupported object type: {}", static_cast<int>(_objectType));
-		return nullptr;
-	}
-}
-
 void RingsMapEditor::SelectLastObject()
 {
+	std::vector<std::shared_ptr<Object>>& objects = objectManager->GetObjects();
+
 	if (!objects.empty())
 	{
 		selectedObjectIndex = objects.size() - 1;
@@ -311,32 +284,6 @@ void RingsMapEditor::SelectLastObject()
 	else
 	{
 		selectedObjectIndex = -1;
-	}
-}
-
-void RingsMapEditor::InitPaths()
-{
-	DataFolderPath = gameWrapper->GetDataFolder() / "RingsMapEditor";
-	if (!std::filesystem::exists(DataFolderPath))
-	{
-		LOG("Data folder does not exist, creating: {}", DataFolderPath.string());
-		std::filesystem::create_directories(DataFolderPath);
-	}
-
-	std::string RLWin64_Path = std::filesystem::current_path().string();
-	RLCookedPCConsolePath = RLWin64_Path.substr(0, RLWin64_Path.length() - 14) + "TAGame\\CookedPCConsole\\mods\\RingsMapEditor";
-	LOG("CookedPCConsole Path: {}", RLCookedPCConsolePath.string());
-	if (!std::filesystem::exists(RLCookedPCConsolePath))
-	{
-		LOG("CookedPCConsole\\mods\\RingsMapEditor does not exist, creating: {}", RLCookedPCConsolePath.string());
-		std::filesystem::create_directories(RLCookedPCConsolePath);
-	}
-
-	MeshesPath = RLCookedPCConsolePath / "Meshes";
-	if (!std::filesystem::exists(MeshesPath))
-	{
-		LOG("Meshes folder does not exist, creating: {}", MeshesPath.string());
-		std::filesystem::create_directories(MeshesPath);
 	}
 }
 
@@ -352,7 +299,7 @@ void RingsMapEditor::CheckTriggerVolumes()
 		return;
 	}
 
-	for (std::shared_ptr<TriggerVolume>& volume : triggerVolumes)
+	for (std::shared_ptr<TriggerVolume>& volume : objectManager->GetTriggerVolumes())
 	{
 		if (volume->IsPointInside(localCar.GetLocation()))
 		{
@@ -406,7 +353,7 @@ void RingsMapEditor::CheckRings()
 		return;
 	}
 
-	for (std::shared_ptr<Ring>& ring : rings)
+	for (std::shared_ptr<Ring>& ring : objectManager->GetRings())
 	{
 		//Car pass through the ring
 		if (ring->triggerVolumeIn.IsPointInside(localCar.GetLocation()))
@@ -445,7 +392,7 @@ void RingsMapEditor::RenderTriggerVolumes(CanvasWrapper canvas)
 	CameraWrapper camera = gameWrapper->GetCamera();
 	if (!camera) return;
 
-	for (std::shared_ptr<TriggerVolume>& volume : triggerVolumes)
+	for (std::shared_ptr<TriggerVolume>& volume : objectManager->GetTriggerVolumes())
 	{
 		volume->Render(canvas, camera);
 	}
@@ -473,7 +420,7 @@ void RingsMapEditor::RenderRings(CanvasWrapper canvas)
 	CameraWrapper camera = gameWrapper->GetCamera();
 	if (!camera) return;
 
-	for (std::shared_ptr<Ring>& ring : rings)
+	for (std::shared_ptr<Ring>& ring : objectManager->GetRings())
 	{
 		ring->RenderTriggerVolumes(canvas, camera);
 	}
@@ -613,7 +560,7 @@ std::shared_ptr<TriggerVolume> RingsMapEditor::FromJson_TriggerVolume(const nloh
 			if (j["onTouchCallback"].is_object())
 			{
 				std::string touchCallBackName = j["onTouchCallback"]["name"].get<std::string>();
-				triggerVolume->SetOnTouchCallback(triggerFunctionsMap[touchCallBackName]->CloneFromJson(j["onTouchCallback"]));
+				triggerVolume->SetOnTouchCallback(objectManager->GetTriggerFunctionsMap()[touchCallBackName]->CloneFromJson(j["onTouchCallback"]));
 			}
 		}
 	}
@@ -695,7 +642,7 @@ void RingsMapEditor::SpawnMesh(Mesh& _mesh)
 	AKActor* KActorDefault = GetDefaultInstanceOf<AKActorSpawnable>();
 	if (!KActorDefault)
 	{
-		LOG("[ERROR]KActor default NULL");
+		LOG("[ERROR]AKActorSpawnable default NULL");
 		return;
 	}
 
@@ -733,47 +680,26 @@ void RingsMapEditor::SpawnMesh(Mesh& _mesh)
 
 void RingsMapEditor::DestroyAllMeshes()
 {
-	for (std::shared_ptr<Mesh>& mesh : meshes)
+	for (std::shared_ptr<Mesh>& mesh : objectManager->GetMeshes())
 	{
 		mesh->DestroyInstance();
 	}
 }
 
-void RingsMapEditor::RemoveObject(int objectIndex)
+void RingsMapEditor::AddObject(ObjectType _objectType)
 {
-	std::shared_ptr<Object> selectedObject = objects[objectIndex];
+	objectManager->AddObject(_objectType);
+	SelectLastObject();
+}
 
-	if (selectedObject->objectType == ObjectType::Mesh)
-	{
-		std::shared_ptr<Mesh> mesh = std::static_pointer_cast<Mesh>(selectedObject);
-		meshes.erase(std::remove(meshes.begin(), meshes.end(), mesh), meshes.end());
-		LOG("Removed mesh: {}", mesh->name);
-	}
-	else if (selectedObject->objectType == ObjectType::TriggerVolume)
-	{
-		std::shared_ptr<TriggerVolume> triggerVolume = std::static_pointer_cast<TriggerVolume>(selectedObject);
-		triggerVolumes.erase(std::remove(triggerVolumes.begin(), triggerVolumes.end(), triggerVolume), triggerVolumes.end());
-		LOG("Removed trigger volume: {}", triggerVolume->name);
-	}
-	else if (selectedObject->objectType == ObjectType::Checkpoint)
-	{
-		std::shared_ptr<Checkpoint> chekpoint = std::static_pointer_cast<Checkpoint>(selectedObject);
-		checkpoints.erase(std::remove(checkpoints.begin(), checkpoints.end(), chekpoint), checkpoints.end());
-		LOG("Removed checkpoint: {}", chekpoint->name);
-	}
-	else if (selectedObject->objectType == ObjectType::Ring)
-	{
-		std::shared_ptr<Ring> ring = std::static_pointer_cast<Ring>(selectedObject);
-		rings.erase(std::remove(rings.begin(), rings.end(), ring), rings.end());
-		LOG("Removed ring: {}", ring->name);
-	}
+void RingsMapEditor::RemoveObject(const int& _objectIndex)
+{
+	objectManager->RemoveObject(_objectIndex);
 
-	objects.erase(objects.begin() + objectIndex);
-
-	if (selectedObjectIndex == objectIndex)
+	if (selectedObjectIndex == _objectIndex)
 		selectedObjectIndex--;
 
-	if (selectedObjectIndex < 0 && !objects.empty())
+	if (selectedObjectIndex < 0 && !objectManager->GetObjects().empty())
 		selectedObjectIndex = 0; // Select the first object if available
 }
 

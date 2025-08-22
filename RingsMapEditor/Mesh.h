@@ -11,8 +11,6 @@ struct MeshInfos
 };
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(MeshInfos, name, meshPath)
 
-inline std::vector<MeshInfos> AvailableMeshes;
-
 class Mesh : public Object
 {
 public:

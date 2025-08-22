@@ -41,6 +41,8 @@ void RingsMapEditor::RenderWindow()
 		StartRaceMode();
 	}
 
+	std::vector<std::shared_ptr<Object>>& objects = objectManager->GetObjects();
+
 	if (ImGui::BeginChild("##Objects", ImVec2(250, 0), true))
 	{
 		CustomWidget::CenterNexIMGUItItem(ImGui::CalcTextSize("Objects").x);
@@ -321,7 +323,7 @@ void RingsMapEditor::RenderProperties_TriggerVolume(std::shared_ptr<TriggerVolum
 			{
 				if (!isSelected)
 				{
-					ConvertTriggerVolume(_volume, type.first);
+					objectManager->ConvertTriggerVolume(_volume, type.first);
 				}
 			}
 		}
@@ -344,7 +346,7 @@ void RingsMapEditor::RenderProperties_TriggerVolume(std::shared_ptr<TriggerVolum
 	std::string selectedFunction = (_volume->onTouchCallback ? _volume->onTouchCallback->name : "");
 	if (ImGui::BeginCombo("On Touch Event", selectedFunction.c_str()))
 	{
-		for (auto& func : triggerFunctionsMap)
+		for (auto& func : objectManager->GetTriggerFunctionsMap())
 		{
 			if (ImGui::Selectable(func.second->name.c_str()))
 			{
@@ -449,6 +451,8 @@ void RingsMapEditor::RenderProperties_Ring(std::shared_ptr<Ring>& _ring)
 	ImGui::SameLine();
 	ImGui::SetNextItemWidth(100.f);
 	ImGui::InputInt("##ID", &_ring->ringId, 0, 100);
+
+	std::vector<std::shared_ptr<Ring>>& rings = objectManager->GetRings();
 
 	auto it = std::find_if(rings.begin(), rings.end(),
 		[&_ring](const std::shared_ptr<Ring>& ring) {
@@ -576,31 +580,10 @@ void RingsMapEditor::RenderInputText(std::string _label, std::string* _value, Im
 	ImGui::InputText(std::string("##" + _label).c_str(), _value, _flags);
 }
 
-std::shared_ptr<Object> RingsMapEditor::CopyObject(Object& _object)
+void RingsMapEditor::CopyObject(Object& _object)
 {
-	std::shared_ptr<Object> clonedObject = _object.Clone();
-	clonedObject->name += " (Copy)";
-	objects.emplace_back(clonedObject);
-
-	if (clonedObject->objectType == ObjectType::Mesh)
-	{
-		meshes.emplace_back(std::static_pointer_cast<Mesh>(clonedObject));
-	}
-	else if (clonedObject->objectType == ObjectType::TriggerVolume)
-	{
-		triggerVolumes.emplace_back(std::static_pointer_cast<TriggerVolume>(clonedObject));
-	}
-	else if (clonedObject->objectType == ObjectType::Checkpoint)
-	{
-		checkpoints.emplace_back(std::static_pointer_cast<Checkpoint>(clonedObject));
-	}
-	else if (clonedObject->objectType == ObjectType::Ring)
-	{
-		rings.emplace_back(std::static_pointer_cast<Ring>(clonedObject));
-	}
-
+	objectManager->CopyObject(_object);
 	SelectLastObject();
-	return clonedObject;
 }
 
 void RingsMapEditor::RenderAddObjectPopup()
