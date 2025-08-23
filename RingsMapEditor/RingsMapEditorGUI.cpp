@@ -231,7 +231,7 @@ void RingsMapEditor::RenderProperties_Mesh(Mesh& _mesh)
 	if (ImGui::Button("Spawn Object"))
 	{
 		gameWrapper->Execute([this, &_mesh](GameWrapper* gw) {
-			SpawnMesh(_mesh);
+			_mesh.SpawnInstance();
 			});
 	}
 
@@ -555,7 +555,7 @@ void RingsMapEditor::RenderProperties_Ring(std::shared_ptr<Ring>& _ring)
 	if (ImGui::Button("Spawn Object"))
 	{
 		gameWrapper->Execute([this, &_ring](GameWrapper* gw) {
-			SpawnMesh(_ring->mesh);
+			_ring->mesh.SpawnInstance();
 			});
 	}
 

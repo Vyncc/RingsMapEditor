@@ -24,6 +24,79 @@ bool Mesh::IsMeshPathEmpty() const
 	return meshInfos.meshPath.empty();
 }
 
+bool Mesh::IsInGame() const
+{
+	return _globalGameWrapper->IsInFreeplay() || _globalGameWrapper->IsInGame() || _globalGameWrapper->IsInOnlineGame();
+}
+
+void Mesh::SpawnInstance()
+{
+	if (!IsInGame())
+	{
+		LOG("[ERROR]You must be in a game to spawn objects!");
+		return;
+	}
+
+	if (IsMeshPathEmpty())
+	{
+		LOG("[ERROR]{} : Mesh path is empty!", name);
+		return;
+	}
+
+	UStaticMesh* loadedMesh = reinterpret_cast<UStaticMesh*>(UObject::DynamicLoadObject(StringToFString(meshInfos.meshPath), UStaticMesh::StaticClass(), 1));
+	if (!loadedMesh)
+	{
+		LOG("[ERROR]Couldn't load mesh : {} | {}", meshInfos.name, meshInfos.meshPath);
+		return;
+	}
+
+	LOG("Loaded mesh successfully : {}", loadedMesh->GetFullName());
+
+	AKActor* KActorDefault = GetDefaultInstanceOf<AKActorSpawnable>();
+	if (!KActorDefault)
+	{
+		LOG("[ERROR]AKActorSpawnable default NULL");
+		return;
+	}
+
+	AKActorSpawnable* spawnedKActor = reinterpret_cast<AKActorSpawnable*>(KActorDefault->SpawnInstance(NULL, FName(0), GetFVectorLocation(), GetFRotatorRotation(), 0));
+	if (!spawnedKActor)
+	{
+		LOG("[ERROR]spawnedKActor NULL");
+		return;
+	}
+
+	instance = spawnedKActor;
+	SetStaticMesh(loadedMesh);
+	SetLocation(location);
+	SetRotation(rotation);
+	SetScale3D(FVector{ scale, scale, scale });
+
+	if (enableCollisions)
+		EnableCollisions();
+	else
+		DisableCollisions();
+
+	if (enablePhysics)
+		EnablePhysics();
+	else
+		DisablePhysics();
+
+	if (enableStickyWalls)
+		EnableStickyWalls();
+
+	LOG("Spawned object successfully : {}", name);
+}
+
+void Mesh::DestroyInstance()
+{
+	if (instance)
+	{
+		instance->Destroy();
+		instance = nullptr;
+	}
+}
+
 void Mesh::EnableCollisions()
 {
 	enableCollisions = true;
@@ -212,13 +285,45 @@ void Mesh::SetScale3D(const Vector& _newScale3D)
 	SetScale3D(VectorToFVector(_newScale3D));
 }
 
-void Mesh::DestroyInstance()
+void Mesh::SetStaticMesh(UStaticMesh* _staticMesh)
 {
-	if (instance)
+	if (!IsSpawned())
 	{
-		instance->Destroy();
-		instance = nullptr;
+		LOG("[ERROR]{} instance is null!", name);
+		return;
 	}
+
+	instance->SetStaticMesh(_staticMesh, FVector{ 0.f, 0.f, 0.f }, FRotator{ 0, 0, 0 }, FVector{ 1.f, 1.f, 1.f });
+	LOG("Set mesh : {}", _staticMesh->GetFullName());
+}
+
+void Mesh::SetStaticMesh(const MeshInfos& _meshInfos)
+{
+	if (!IsInGame())
+	{
+		LOG("[ERROR]You must be in a game to spawn objects!");
+		return;
+	}
+
+	if (IsMeshPathEmpty())
+	{
+		LOG("[ERROR]{} : Mesh path is empty!", _meshInfos.name);
+		return;
+	}
+
+	UStaticMesh* loadedMesh = reinterpret_cast<UStaticMesh*>(UObject::DynamicLoadObject(StringToFString(_meshInfos.meshPath), UStaticMesh::StaticClass(), 1));
+	if (!loadedMesh)
+	{
+		LOG("[ERROR]Couldn't load mesh : {} | {}", _meshInfos.name, _meshInfos.meshPath);
+		return;
+	}
+
+	LOG("Loaded mesh successfully : {}", loadedMesh->GetFullName());
+
+	instance->SetStaticMesh(loadedMesh, FVector{ 0.f, 0.f, 0.f }, FRotator{ 0, 0, 0 }, FVector{ 1.f, 1.f, 1.f });
+	LOG("Set mesh : {}", loadedMesh->GetFullName());
+
+	meshInfos = _meshInfos;
 }
 
 UPhysicalMaterial* Mesh::GetStickyWallsPhysMaterial()

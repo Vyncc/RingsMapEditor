@@ -75,7 +75,7 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
     void CheckTriggerVolumes();
     void CheckCheckpoints();
     void CheckRings();
-    void OnTick(std::string eventName);
+    void OnTick(ActorWrapper caller, void* params, std::string eventName);
     void RenderTriggerVolumes(CanvasWrapper canvas);
     void RenderCheckpoints(CanvasWrapper canvas);
     void RenderRings(CanvasWrapper canvas);
@@ -83,7 +83,6 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
     void RenderCanvas(CanvasWrapper canvas);
 
 
-    void SpawnMesh(Mesh& _mesh);
     void DestroyAllMeshes();
     void AddObject(ObjectType _objectType);
     void RemoveObject(const int& _objectIndex);

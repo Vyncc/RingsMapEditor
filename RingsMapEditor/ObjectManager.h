@@ -20,7 +20,7 @@ public:
     void RemoveObject(const int& _objectIndex);
     void ClearObjects();
 
-    void ConvertTriggerVolume(std::shared_ptr<TriggerVolume>& _triggerVolume, TriggerVolumeType _triggerVolumeType);
+    void ConvertTriggerVolume(std::shared_ptr<TriggerVolume> _triggerVolume, TriggerVolumeType _triggerVolumeType);
 
     std::vector<std::shared_ptr<Object>>& GetObjects();
     std::vector<std::shared_ptr<Mesh>>& GetMeshes();

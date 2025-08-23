@@ -48,7 +48,10 @@ public:
 	bool IsSpawned() const;
 	bool HasCollisionMesh() const;
 	bool IsMeshPathEmpty() const;
+    bool IsInGame() const;
 
+    void SpawnInstance();
+    void DestroyInstance();
 	void EnableCollisions();
 	void DisableCollisions();
 	void EnablePhysics();
@@ -61,7 +64,8 @@ public:
 	void SetRotation(const Rotator& _newRotation) override;
 	void SetScale3D(const FVector& _newScale3D);
 	void SetScale3D(const Vector& _newScale3D);
-    void DestroyInstance();
+    void SetStaticMesh(UStaticMesh* _staticMesh);
+    void SetStaticMesh(const MeshInfos& _meshInfos);
 
     static UPhysicalMaterial* GetStickyWallsPhysMaterial();
 
@@ -81,7 +85,10 @@ public:
 
 	std::shared_ptr<Object> Clone() override {
 		std::shared_ptr<Mesh> clonedMesh = std::make_shared<Mesh>(*this);
-		clonedMesh->instance = nullptr;
+        if (clonedMesh->instance)
+        {
+            clonedMesh->SpawnInstance();
+        }
 		return clonedMesh;
 	}
 

@@ -445,8 +445,8 @@ inline void InitRLSDK(bool log = false)
 	//uintptr_t GNamesAddress = FindPattern(GetModuleHandle(NULL), (uint8_t*)"\xE8\x00\x00\x00\x00\x48\xC7\xC7", (char*)"x????xxx", 0x2f); //this signature doesn't work since v2.46 (04/12/2024)
 
 	uintptr_t EntryPointAddress = reinterpret_cast<uintptr_t>(GetModuleHandle(NULL));
-	uintptr_t GObjectsAddress = EntryPointAddress + 0x23C0398; //v2.54 offset
-	uintptr_t GNamesAddress = EntryPointAddress + 0x23C0350; //v2.54 offset
+	uintptr_t GObjectsAddress = EntryPointAddress + 0x23C1418; //v2.55 offset
+	uintptr_t GNamesAddress = EntryPointAddress + 0x23C13D0; //v2.55 offset
 
 	GObjects = reinterpret_cast<TArray<UObject*>*>(GObjectsAddress);
 	GNames = reinterpret_cast<TArray<FNameEntry*>*>(GNamesAddress);

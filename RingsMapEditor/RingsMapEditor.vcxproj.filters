@@ -195,6 +195,9 @@
     <ClCompile Include="ObjectManager.cpp">
       <Filter>Plugin\src</Filter>
     </ClCompile>
+    <ClCompile Include="BuildMode.cpp">
+      <Filter>Plugin\src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imgui\imgui_rangeslider.h">

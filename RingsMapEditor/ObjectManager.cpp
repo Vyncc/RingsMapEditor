@@ -52,6 +52,15 @@ void ObjectManager::AddObject(ObjectType _objectType)
 void ObjectManager::AddObject(const std::shared_ptr<Object>& _object)
 {
 	m_objects.emplace_back(_object);
+
+	if (_object->objectType == ObjectType::Mesh)
+		AddMesh(std::static_pointer_cast<Mesh>(_object));
+	else if (_object->objectType == ObjectType::TriggerVolume)
+		AddTriggerVolume(std::static_pointer_cast<TriggerVolume>(_object));
+	else if (_object->objectType == ObjectType::Checkpoint)
+		AddCheckpoint(std::static_pointer_cast<Checkpoint>(_object));
+	else if (_object->objectType == ObjectType::Ring)
+		AddRing(std::static_pointer_cast<Ring>(_object));
 }
 
 void ObjectManager::AddMesh(const std::shared_ptr<Mesh>& _mesh)
@@ -140,7 +149,7 @@ void ObjectManager::ClearObjects()
 	m_rings.clear();
 }
 
-void ObjectManager::ConvertTriggerVolume(std::shared_ptr<TriggerVolume>& _triggerVolume, TriggerVolumeType _triggerVolumeType)
+void ObjectManager::ConvertTriggerVolume(std::shared_ptr<TriggerVolume> _triggerVolume, TriggerVolumeType _triggerVolumeType)
 {
 	std::shared_ptr<TriggerVolume> oldPtr = _triggerVolume;
 
@@ -153,10 +162,16 @@ void ObjectManager::ConvertTriggerVolume(std::shared_ptr<TriggerVolume>& _trigge
 		_triggerVolume = std::make_shared<TriggerVolume_Cylinder>(*_triggerVolume);
 	}
 
-	auto it = std::find(m_triggerVolumes.begin(), m_triggerVolumes.end(), oldPtr);
-	if (it != m_triggerVolumes.end())
+	auto objects_it = std::find(m_objects.begin(), m_objects.end(), oldPtr);
+	if (objects_it != m_objects.end())
 	{
-		*it = _triggerVolume; // point to new object
+		*objects_it = _triggerVolume; // point to new object
+	}
+
+	auto triggerVolumes_it = std::find(m_triggerVolumes.begin(), m_triggerVolumes.end(), oldPtr);
+	if (triggerVolumes_it != m_triggerVolumes.end())
+	{
+		*triggerVolumes_it = _triggerVolume; // point to new object
 	}
 }
 

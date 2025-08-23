@@ -28,10 +28,9 @@ void RingsMapEditor::onLoad()
 	//	LOG("Your hook got called and the ball went POOF");
 	//});
 
-
-	cvarManager->registerNotifier("ringsmapeditor_build_mode_toggle", [&](std::vector<std::string> args) {
+	_globalCvarManager->registerNotifier("ringsmapeditor_buildmode_toggle", [&](std::vector<std::string> args) {
 		buildMode->ToggleBuildMode();
-	}, "", 0);
+		}, "", 0);
 
 	gameWrapper->HookEventPost("Function TAGame.GameEvent_TA.PostBeginPlay", std::bind(&RingsMapEditor::OnGameCreated, this, std::placeholders::_1));
 	gameWrapper->HookEvent("Function TAGame.GameEvent_Soccar_TA.Destroyed", std::bind(&RingsMapEditor::OnGameDestroyed, this, std::placeholders::_1));
@@ -39,7 +38,7 @@ void RingsMapEditor::onLoad()
 	//gameWrapper->HookEventWithCallerPost<CarWrapper>("Function TAGame.Car_TA.PostBeginPlay", std::bind(&RingsMapEditor::OnCarSpawn, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 	gameWrapper->HookEventWithCallerPost<CarWrapper>("Function TAGame.Car_TA.OnVehicleSetup", std::bind(&RingsMapEditor::OnCarSpawn, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
-	gameWrapper->HookEvent("Function Engine.GameViewportClient.Tick", std::bind(&RingsMapEditor::OnTick, this, std::placeholders::_1));
+	gameWrapper->HookEventWithCaller<ActorWrapper>("Function Engine.GameViewportClient.Tick", std::bind(&RingsMapEditor::OnTick, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 	gameWrapper->RegisterDrawable(bind(&RingsMapEditor::RenderCanvas, this, std::placeholders::_1));
 }
 
@@ -133,15 +132,6 @@ void RingsMapEditor::LoadConfig(const std::filesystem::path& filePath)
 
 			LOG("loaded object : {}", loadedObject->name);
 			objectManager->AddObject(loadedObject);
-
-			if (loadedObject->objectType == ObjectType::Mesh)
-				objectManager->AddMesh(std::static_pointer_cast<Mesh>(loadedObject));
-			else if(loadedObject->objectType == ObjectType::TriggerVolume)
-				objectManager->AddTriggerVolume(std::static_pointer_cast<TriggerVolume>(loadedObject));
-			else if(loadedObject->objectType == ObjectType::Checkpoint)
-				objectManager->AddCheckpoint(std::static_pointer_cast<Checkpoint>(loadedObject));
-			else if(loadedObject->objectType == ObjectType::Ring)
-				objectManager->AddRing(std::static_pointer_cast<Ring>(loadedObject));
 		}
 
 		LOG("Loaded config successfully from: {}", filePath.string());
@@ -206,11 +196,11 @@ void RingsMapEditor::OnGameFirstTick(std::string eventName)
 			{
 				if (object->objectType == ObjectType::Mesh)
 				{
-					SpawnMesh(*std::static_pointer_cast<Mesh>(object));
+					std::static_pointer_cast<Mesh>(object)->SpawnInstance();
 				}
 				else if (object->objectType == ObjectType::Ring)
 				{
-					SpawnMesh(std::static_pointer_cast<Ring>(object)->mesh);
+					std::static_pointer_cast<Ring>(object)->mesh.SpawnInstance();
 				}
 			}
 		}, 0.1f);
@@ -374,14 +364,24 @@ void RingsMapEditor::CheckRings()
 	}
 }
 
-void RingsMapEditor::OnTick(std::string eventName)
+void RingsMapEditor::OnTick(ActorWrapper caller, void* params, std::string eventName)
 {
-	if (!IsInRaceMode())
+	if (!IsInGame())
 		return;
 
-	CheckTriggerVolumes();
-	CheckCheckpoints();
-	CheckRings();
+	if (IsInEditorMode())
+	{
+		if (buildMode->IsEnabled())
+		{
+			buildMode->OnTick(*reinterpret_cast<float*>(params));
+		}
+	}
+	else if (IsInRaceMode())
+	{
+		CheckTriggerVolumes();
+		CheckCheckpoints();
+		CheckRings();
+	}
 }
 
 void RingsMapEditor::RenderTriggerVolumes(CanvasWrapper canvas)
@@ -454,6 +454,11 @@ void RingsMapEditor::RenderCanvas(CanvasWrapper canvas)
 		RenderTriggerVolumes(canvas);
 		RenderCheckpoints(canvas);
 		RenderRings(canvas);
+
+		if (buildMode->IsEnabled())
+		{
+			buildMode->RenderCanvas(canvas);
+		}
 	}
 	else if (IsInRaceMode())
 	{
@@ -614,68 +619,6 @@ std::shared_ptr<Ring> RingsMapEditor::FromJson_Ring(const nlohmann::json& j)
 	LOG("triggervolumes created");
 
 	return ring;
-}
-
-void RingsMapEditor::SpawnMesh(Mesh& _mesh)
-{
-	if (!IsInGame())
-	{
-		LOG("[ERROR]You must be in a game to spawn obejcts!");
-		return;
-	}
-
-	if (_mesh.IsMeshPathEmpty())
-	{
-		LOG("[ERROR]{} : Mesh path is empty!", _mesh.name);
-		return;
-	}
-
-	UStaticMesh* loadedObject = reinterpret_cast<UStaticMesh*>(UObject::DynamicLoadObject(StringToFString(_mesh.meshInfos.meshPath), UStaticMesh::StaticClass(), 1));
-	if (!loadedObject)
-	{
-		LOG("[ERROR]Couldn't load object : {}", _mesh.meshInfos.meshPath);
-		return;
-	}
-
-	LOG("Loaded object successfully : {}", loadedObject->GetFullName());
-
-	AKActor* KActorDefault = GetDefaultInstanceOf<AKActorSpawnable>();
-	if (!KActorDefault)
-	{
-		LOG("[ERROR]AKActorSpawnable default NULL");
-		return;
-	}
-
-	AKActorSpawnable* spawnedKActor = reinterpret_cast<AKActorSpawnable*>(KActorDefault->SpawnInstance(NULL, FName(0), _mesh.GetFVectorLocation(), _mesh.GetFRotatorRotation(), 0));
-	if (!spawnedKActor)
-	{
-		LOG("[ERROR]spawnedKActor NULL");
-		return;
-	}
-
-	spawnedKActor->SetStaticMesh(loadedObject, FVector{ 0.f, 0.f, 0.f }, FRotator{ 0, 0, 0 }, FVector{ 1.f, 1.f, 1.f });
-
-	_mesh.instance = spawnedKActor;
-
-	_mesh.SetLocation(_mesh.location);
-	_mesh.SetRotation(_mesh.rotation);
-	_mesh.SetScale3D(FVector{ _mesh.scale, _mesh.scale, _mesh.scale });
-
-
-	if (_mesh.enableCollisions)
-		_mesh.EnableCollisions();
-	else
-		_mesh.DisableCollisions();
-
-	if (_mesh.enablePhysics)
-		_mesh.EnablePhysics();
-	else
-		_mesh.DisablePhysics();
-
-	if (_mesh.enableStickyWalls)
-		_mesh.EnableStickyWalls();
-
-	LOG("Spawned object successfully : {}", _mesh.name);
 }
 
 void RingsMapEditor::DestroyAllMeshes()

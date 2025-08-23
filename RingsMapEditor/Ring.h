@@ -89,7 +89,13 @@ public:
 	//Would be better if I Clone() for mesh, triggerVolumeIn, triggerVolumeOut. But I would first need to store them as shared_ptr
     std::shared_ptr<Object> Clone() override {
         std::shared_ptr<Ring> clonedRing = std::make_shared<Ring>(*this);
-		clonedRing->mesh.instance = nullptr;
+
+		//clonedRing->mesh = *std::static_pointer_cast<Mesh>(clonedRing->mesh.Clone());
+		if (clonedRing->mesh.instance)
+		{
+			clonedRing->mesh.SpawnInstance();
+		}
+
 		clonedRing->triggerVolumeIn.onTouchCallback = (clonedRing->triggerVolumeIn.onTouchCallback ? clonedRing->triggerVolumeIn.onTouchCallback->Clone() : nullptr);
         clonedRing->triggerVolumeOut.onTouchCallback = (clonedRing->triggerVolumeOut.onTouchCallback ? clonedRing->triggerVolumeOut.onTouchCallback->Clone() : nullptr);
 		clonedRing->UpdateTriggerVolumes();
