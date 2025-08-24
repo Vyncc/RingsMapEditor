@@ -29,7 +29,7 @@ void RingsMapEditor::onLoad()
 	//});
 
 	_globalCvarManager->registerNotifier("ringsmapeditor_buildmode_toggle", [&](std::vector<std::string> args) {
-		buildMode->ToggleBuildMode();
+		buildMode->Toggle();
 		}, "", 0);
 
 	gameWrapper->HookEventPost("Function TAGame.GameEvent_TA.PostBeginPlay", std::bind(&RingsMapEditor::OnGameCreated, this, std::placeholders::_1));

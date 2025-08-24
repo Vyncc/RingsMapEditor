@@ -140,6 +140,18 @@ public:
         size = newSize;
     }
 
+    void SetSizeX(float newSizeX) {
+        size.X = newSizeX;
+    }
+
+    void SetSizeY(float newSizeY) {
+        size.Y = newSizeY;
+    }
+
+    void SetSizeZ(float newSizeZ) {
+        size.Z = newSizeZ;
+    }
+
     // Check if a point is inside the box
     bool IsPointInside(const Vector& point) const override {
         RT::Box box(location, RotatorToQuat(rotation), size, 1.f);

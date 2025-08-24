@@ -446,6 +446,9 @@
     <ClInclude Include="ObjectManager.h">
       <Filter>Plugin\header</Filter>
     </ClInclude>
+    <ClInclude Include="EditorSubMode.h">
+      <Filter>Plugin\header</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="RingsMapEditor.rc">

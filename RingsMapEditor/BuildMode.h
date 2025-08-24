@@ -1,30 +1,43 @@
 #pragma once
 
-#include "ObjectManager.h"
+#include "EditorSubMode.h"
 
-enum class EditingProperty : uint8_t
+enum class EditingPropertyType : uint8_t
 {
     Rotation_Pitch = 0,
     Rotation_Yaw = 1,
     Rotation_Roll = 2,
+    Scale = 3,
+    TriggerVolume_Box_Size_X = 4,
+    TriggerVolume_Box_Size_Y = 5,
+    TriggerVolume_Box_Size_Z = 6,
+    TriggerVolume_Cylinder_Radius = 7,
+    TriggerVolume_Cylinder_Height = 8,
 };
 
-class BuildMode
+struct EditingProperty
+{
+    std::string name;
+    std::function<void(float _deltaTime)> addFunction;
+    std::function<void(float _deltaTime)> removeFunction;
+    std::function<void()> resetFunction;
+};
+
+class BuildMode : public EditorSubMode
 {
 public:
     BuildMode(std::shared_ptr<ObjectManager> _objectManager, std::vector<MeshInfos> _availableMeshes);
     ~BuildMode();
 
-    bool IsEnabled();
-    void ToggleBuildMode();
-    void EnableBuildMode();
-    void DisableBuildMode();
+    void Enable() override;
+    void Disable() override;
+    void OnTick(float _deltaTime) override;
+    void RenderObjectsCanvas(CanvasWrapper _canvas) override;
+    void RenderCanvas(CanvasWrapper _canvas) override;
+    void PlaceObject() override;
+
     void RegisterCommands();
     void UnregisterCommands();
-    void HookEvents();
-    void UnhookEvents();
-    void Spectate();
-    void SwitchToFlyCam();
     void SetPreviewObjectType(ObjectType _objectType);
     void PreviousObjectType();
     void NextObjectType();
@@ -33,33 +46,46 @@ public:
     void PreviousTriggerVolume();
     void NextTriggerVolume();
     void CycleEditingProperty();
-    void PlaceObject();
+    void ResetCurrentEditingProperty();
     int NormalizeUnrealRotation(int _rot);
     void RotatePreviewObjectAdd(const float& _pitch, const float& _yaw, const float& _roll);
     Vector CalculatePreviewActorLocation(CameraWrapper _camera);
-    bool IsInGame() const;
     MeshInfos GetCurrentMesh();
-    bool IsSpectator() const;
-    void OnTick(float _deltaTime);
-    void RenderObjectsCanvas(CanvasWrapper _canvas);
-    void RenderCanvas(CanvasWrapper _canvas);
+
+    void OnRightShoulderPressed(float _deltaTime);
+    void OnLeftShoulderPressed(float _deltaTime);
+
+    void BuildObjectEditingProperties();
+    void BuildEditingPropertiesFor(std::shared_ptr<std::vector<EditingProperty>>& _editingProperties);
+    void BuildEditingProperties();
+
+    EditingProperty GetCurrentEditingProperty();
 
 private:
-    bool m_enabled = false;
-    std::shared_ptr<ObjectManager> m_objectManager = nullptr;
     ObjectType m_previewObjectType = ObjectType::Mesh;
     TriggerVolumeType m_triggerVolumeType = TriggerVolumeType::Box;
     std::vector<MeshInfos> m_availableMeshes;
-    int m_meshIndex = 0;
+    int m_availableMeshesIndex = 0;
     std::shared_ptr<Object> m_previewObject = nullptr;
     Rotator m_previewObjectRotation = Rotator(0, 0, 0);
 
-    float m_previewObjectDistance = 1400.f;
-    float m_roationDegreesPerSeconds = 90.f;
+    int* editingProperties_current_index = nullptr;
+    std::shared_ptr<std::vector<EditingProperty>> editingProperties_current;
 
-    EditingProperty m_editingProperty = EditingProperty::Rotation_Yaw;
+    std::shared_ptr<std::vector<EditingProperty>> editingProperties_object;
 
-    FName fname_flyCam;
-    int rightShoulder = 0;
-    int leftShoulder = 0;
+    int editingProperties_mesh_index = 0;
+    std::shared_ptr<std::vector<EditingProperty>> editingProperties_mesh;
+
+    int editingProperties_triggerVolumeBox_index = 0;
+    std::shared_ptr<std::vector<EditingProperty>> editingProperties_triggerVolumeBox;
+
+    int editingProperties_triggerVolumeCylinder_index = 0;
+    std::shared_ptr<std::vector<EditingProperty>> editingProperties_triggerVolumeCylinder;
+
+    int editingProperties_checkpoint_index = 0;
+    std::shared_ptr<std::vector<EditingProperty>> editingProperties_checkpoint;
+
+    int editingProperties_ring_index = 0;
+    std::shared_ptr<std::vector<EditingProperty>> editingProperties_ring;
 };
