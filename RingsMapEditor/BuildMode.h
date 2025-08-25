@@ -2,19 +2,6 @@
 
 #include "EditorSubMode.h"
 
-enum class EditingPropertyType : uint8_t
-{
-    Rotation_Pitch = 0,
-    Rotation_Yaw = 1,
-    Rotation_Roll = 2,
-    Scale = 3,
-    TriggerVolume_Box_Size_X = 4,
-    TriggerVolume_Box_Size_Y = 5,
-    TriggerVolume_Box_Size_Z = 6,
-    TriggerVolume_Cylinder_Radius = 7,
-    TriggerVolume_Cylinder_Height = 8,
-};
-
 struct EditingProperty
 {
     std::string name;
@@ -22,6 +9,34 @@ struct EditingProperty
     std::function<void(float _deltaTime)> removeFunction;
     std::function<void()> resetFunction;
 };
+
+class ObjectEditingProperties
+{
+public:
+	ObjectEditingProperties() = default;
+	~ObjectEditingProperties() = default;
+
+	int GetIndex() const { return index; }
+	void SetIndex(int _index) { index = _index; }
+
+	std::vector<EditingProperty>& GetProperties() { return properties; }
+	void SetProperties(const std::vector<EditingProperty>& _properties) { properties = _properties; }
+	void AddProperty(EditingProperty _property) { properties.emplace_back(_property); }
+	size_t GetPropertiesCount() const { return properties.size(); }
+
+	EditingProperty& GetCurrentEditingProperty() { return properties[index]; }
+
+private:
+	int index = 0;
+	std::vector<EditingProperty> properties;
+};
+
+#define OBJECT_EDITING_PROPERTIES_OBJECT "Object"
+#define OBJECT_EDITING_PROPERTIES_MESH "Mesh"
+#define OBJECT_EDITING_PROPERTIES_TRIGGER_VOLUME_BOX "TriggerVolume Box"
+#define OBJECT_EDITING_PROPERTIES_TRIGGER_VOLUME_CYLINDER "TriggerVolume Cylinder"
+#define OBJECT_EDITING_PROPERTIES_CHECKPOINT "Checkpoint"
+#define OBJECT_EDITING_PROPERTIES_RING "Ring"
 
 class BuildMode : public EditorSubMode
 {
@@ -45,6 +60,7 @@ public:
     void NextMesh();
     void PreviousTriggerVolume();
     void NextTriggerVolume();
+	void SetPreviewObjectTriggerVolumeType(const TriggerVolumeType& _triggerVolumeType);
     void CycleEditingProperty();
     void ResetCurrentEditingProperty();
     int NormalizeUnrealRotation(int _rot);
@@ -55,37 +71,194 @@ public:
     void OnRightShoulderPressed(float _deltaTime);
     void OnLeftShoulderPressed(float _deltaTime);
 
-    void BuildObjectEditingProperties();
-    void BuildEditingPropertiesFor(std::shared_ptr<std::vector<EditingProperty>>& _editingProperties);
     void BuildEditingProperties();
-
-    EditingProperty GetCurrentEditingProperty();
+	void SetCurrentObjectEditingPropertiesName(const std::string& _name);
+	ObjectEditingProperties& GetCurrentObjectEditingProperties();
+	EditingProperty& GetCurrentEditingProperty();
 
 private:
     ObjectType m_previewObjectType = ObjectType::Mesh;
     TriggerVolumeType m_triggerVolumeType = TriggerVolumeType::Box;
     std::vector<MeshInfos> m_availableMeshes;
     int m_availableMeshesIndex = 0;
-    std::shared_ptr<Object> m_previewObject = nullptr;
-    Rotator m_previewObjectRotation = Rotator(0, 0, 0);
+    std::shared_ptr<Object> m_previewObject = nullptr; //need to move to EditorSubMode
+    Rotator m_previewObjectRotation = Rotator(0, 0, 0); //need to move to EditorSubMode
 
-    int* editingProperties_current_index = nullptr;
-    std::shared_ptr<std::vector<EditingProperty>> editingProperties_current;
-
-    std::shared_ptr<std::vector<EditingProperty>> editingProperties_object;
-
-    int editingProperties_mesh_index = 0;
-    std::shared_ptr<std::vector<EditingProperty>> editingProperties_mesh;
-
-    int editingProperties_triggerVolumeBox_index = 0;
-    std::shared_ptr<std::vector<EditingProperty>> editingProperties_triggerVolumeBox;
-
-    int editingProperties_triggerVolumeCylinder_index = 0;
-    std::shared_ptr<std::vector<EditingProperty>> editingProperties_triggerVolumeCylinder;
-
-    int editingProperties_checkpoint_index = 0;
-    std::shared_ptr<std::vector<EditingProperty>> editingProperties_checkpoint;
-
-    int editingProperties_ring_index = 0;
-    std::shared_ptr<std::vector<EditingProperty>> editingProperties_ring;
+	std::string m_currentObjectEditingPropertiesName = OBJECT_EDITING_PROPERTIES_MESH;
+	std::map<std::string, ObjectEditingProperties> m_objectsEditingProperties;
+    std::map<std::string, EditingProperty> m_editingPropertyMap = {
+        {
+            "Object Rotation Pitch",
+            EditingProperty{
+                "Rotation Pitch",
+                [this](float _deltaTime) {
+                    float degreesToAdd = m_rotationDegreesPerSec * _deltaTime;
+                    RotatePreviewObjectAdd(degreesToAdd, 0.f, 0.f);
+                },
+                [this](float _deltaTime) {
+                    float degreesToRemove = m_rotationDegreesPerSec * _deltaTime;
+                    RotatePreviewObjectAdd(-degreesToRemove, 0.f, 0.f);
+                },
+                [this]() {
+                    m_previewObjectRotation.Pitch = 0;
+                }
+            }
+        },
+		{
+			"Object Rotation Yaw",
+			EditingProperty{
+				"Rotation Yaw",
+				[this](float _deltaTime) {
+					float degreesToAdd = m_rotationDegreesPerSec * _deltaTime;
+					RotatePreviewObjectAdd(0.f, degreesToAdd, 0.f);
+				},
+				[this](float _deltaTime) {
+					float degreesToRemove = m_rotationDegreesPerSec * _deltaTime;
+					RotatePreviewObjectAdd(0.f, -degreesToRemove, 0.f);
+				},
+				[this]() {
+					m_previewObjectRotation.Yaw = 0;
+				}
+			}
+		},
+		{
+			"Object Rotation Roll",
+			EditingProperty{
+				"Rotation Roll",
+				[this](float _deltaTime) {
+					float degreesToAdd = m_rotationDegreesPerSec * _deltaTime;
+					RotatePreviewObjectAdd(0.f, 0.f, degreesToAdd);
+				},
+				[this](float _deltaTime) {
+					float degreesToRemove = m_rotationDegreesPerSec * _deltaTime;
+					RotatePreviewObjectAdd(0.f, 0.f, -degreesToRemove);
+				},
+				[this]() {
+					m_previewObjectRotation.Roll = 0;
+				}
+			}
+		},
+		{
+			"Mesh Scale",
+			EditingProperty{
+				"Scale",
+				[this](float _deltaTime) {
+					std::shared_ptr<Mesh> mesh = std::static_pointer_cast<Mesh>(m_previewObject);
+					float scaleToAdd = m_scalePerSec * _deltaTime;
+					float newScale = mesh->scale + scaleToAdd;
+					mesh->SetScale3D(Vector(newScale, newScale, newScale));
+				},
+				[this](float _deltaTime) {
+					std::shared_ptr<Mesh> mesh = std::static_pointer_cast<Mesh>(m_previewObject);
+					float scaleToRemove = m_scalePerSec * _deltaTime;
+					float newScale = mesh->scale - scaleToRemove;
+					mesh->SetScale3D(Vector(newScale, newScale, newScale));
+				},
+				[this]() {
+					std::static_pointer_cast<Mesh>(m_previewObject)->SetScale3D(Vector(1.f, 1.f, 1.f));
+				}
+			}
+		},
+        {
+			"TriggerVolumeBox Size X",
+			EditingProperty{
+				"Size X",
+				[this](float _deltaTime) {
+					std::shared_ptr<TriggerVolume_Box> triggerVolumeBox = std::static_pointer_cast<TriggerVolume_Box>(m_previewObject);
+					float sizeToAdd = m_sizeUnitsPerSec * _deltaTime;
+					float newSizeX = triggerVolumeBox->size.X + sizeToAdd;
+					triggerVolumeBox->SetSizeX(newSizeX);
+				},
+				[this](float _deltaTime) {
+					std::shared_ptr<TriggerVolume_Box> triggerVolumeBox = std::static_pointer_cast<TriggerVolume_Box>(m_previewObject);
+					float sizeToRemove = m_sizeUnitsPerSec * _deltaTime;
+					float newSizeX = triggerVolumeBox->size.X - sizeToRemove;
+					triggerVolumeBox->SetSizeX(newSizeX);
+				},
+				[this]() {
+					std::static_pointer_cast<TriggerVolume_Box>(m_previewObject)->SetSizeX(200.f);
+				}
+			}
+		},
+		{
+			"TriggerVolumeBox Size Y",
+			EditingProperty{
+				"Size Y",
+				[this](float _deltaTime) {
+					std::shared_ptr<TriggerVolume_Box> triggerVolumeBox = std::static_pointer_cast<TriggerVolume_Box>(m_previewObject);
+					float sizeToAdd = m_sizeUnitsPerSec * _deltaTime;
+					float newSizeY = triggerVolumeBox->size.Y + sizeToAdd;
+					triggerVolumeBox->SetSizeY(newSizeY);
+				},
+				[this](float _deltaTime) {
+					std::shared_ptr<TriggerVolume_Box> triggerVolumeBox = std::static_pointer_cast<TriggerVolume_Box>(m_previewObject);
+					float sizeToRemove = m_sizeUnitsPerSec * _deltaTime;
+					float newSizeY = triggerVolumeBox->size.Y - sizeToRemove;
+					triggerVolumeBox->SetSizeY(newSizeY);
+				},
+				[this]() {
+					std::static_pointer_cast<TriggerVolume_Box>(m_previewObject)->SetSizeY(200.f);
+				}
+			}
+		},
+		{
+			"TriggerVolumeBox Size Z",
+			EditingProperty{
+				"Size Z",
+				[this](float _deltaTime) {
+					std::shared_ptr<TriggerVolume_Box> triggerVolumeBox = std::static_pointer_cast<TriggerVolume_Box>(m_previewObject);
+					float sizeToAdd = m_sizeUnitsPerSec * _deltaTime;
+					float newSizeZ = triggerVolumeBox->size.Z + sizeToAdd;
+					triggerVolumeBox->SetSizeZ(newSizeZ);
+				},
+				[this](float _deltaTime) {
+					std::shared_ptr<TriggerVolume_Box> triggerVolumeBox = std::static_pointer_cast<TriggerVolume_Box>(m_previewObject);
+					float sizeToRemove = m_sizeUnitsPerSec * _deltaTime;
+					float newSizeZ = triggerVolumeBox->size.Z - sizeToRemove;
+					triggerVolumeBox->SetSizeZ(newSizeZ);
+				},
+				[this]() {
+					std::static_pointer_cast<TriggerVolume_Box>(m_previewObject)->SetSizeZ(200.f);
+				}
+			}
+        },
+		{
+			"TriggerVolumeCylinder Radius",
+			EditingProperty{
+				"Radius",
+				[this](float _deltaTime) {
+					std::shared_ptr<TriggerVolume_Cylinder> triggerVolumeCylinder = std::static_pointer_cast<TriggerVolume_Cylinder>(m_previewObject);
+					float radiusToAdd = m_radiusUnitsPerSec * _deltaTime;
+					triggerVolumeCylinder->radius += radiusToAdd;
+				},
+				[this](float _deltaTime) {
+					std::shared_ptr<TriggerVolume_Cylinder> triggerVolumeCylinder = std::static_pointer_cast<TriggerVolume_Cylinder>(m_previewObject);
+					float radiusToRemove = m_radiusUnitsPerSec * _deltaTime;
+					triggerVolumeCylinder->radius -= radiusToRemove;
+				},
+				[this]() {
+					std::static_pointer_cast<TriggerVolume_Cylinder>(m_previewObject)->radius = 50.f;
+				}
+			}
+		},
+		{
+			"TriggerVolumeCylinder Height",
+			EditingProperty{
+				"Height",
+				[this](float _deltaTime) {
+					std::shared_ptr<TriggerVolume_Cylinder> triggerVolumeCylinder = std::static_pointer_cast<TriggerVolume_Cylinder>(m_previewObject);
+					float heightToAdd = m_radiusUnitsPerSec * _deltaTime;
+					triggerVolumeCylinder->height += heightToAdd;
+				},
+				[this](float _deltaTime) {
+					std::shared_ptr<TriggerVolume_Cylinder> triggerVolumeCylinder = std::static_pointer_cast<TriggerVolume_Cylinder>(m_previewObject);
+					float heightToRemove = m_radiusUnitsPerSec * _deltaTime;
+					triggerVolumeCylinder->height -= heightToRemove;
+				},
+				[this]() {
+					std::static_pointer_cast<TriggerVolume_Cylinder>(m_previewObject)->height = 100.f;
+				}
+			}
+		}
+    };
 };
