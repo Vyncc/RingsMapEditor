@@ -198,6 +198,12 @@
     <ClCompile Include="BuildMode.cpp">
       <Filter>Plugin\src</Filter>
     </ClCompile>
+    <ClCompile Include="EditMode.cpp">
+      <Filter>Plugin\src</Filter>
+    </ClCompile>
+    <ClCompile Include="EditorSubMode.cpp">
+      <Filter>Plugin\src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imgui\imgui_rangeslider.h">
@@ -447,6 +453,9 @@
       <Filter>Plugin\header</Filter>
     </ClInclude>
     <ClInclude Include="EditorSubMode.h">
+      <Filter>Plugin\header</Filter>
+    </ClInclude>
+    <ClInclude Include="EditMode.h">
       <Filter>Plugin\header</Filter>
     </ClInclude>
   </ItemGroup>

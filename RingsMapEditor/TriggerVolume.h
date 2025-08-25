@@ -8,6 +8,9 @@
 #include <array>
 #define M_PI       3.14159265358979323846   // pi
 
+#define max(a,b)            (((a) > (b)) ? (a) : (b))
+#define min(a,b)            (((a) < (b)) ? (a) : (b))
+
 class TriggerFunction
 {
 public:
@@ -61,6 +64,7 @@ public:
     }
 
     virtual bool IsPointInside(const Vector& point) const = 0;
+    virtual bool RayIntersects(const Vector& rayOrigin, const Vector& rayDir, float maxDist, float& tHit) const = 0;
     virtual void Render(CanvasWrapper canvas, CameraWrapper camera) = 0;
 
     virtual nlohmann::json to_json() const override = 0;
@@ -158,6 +162,79 @@ public:
         return box.IsInBox(point);
     }
 
+    bool RayIntersects(const Vector& rayOrigin, const Vector& rayDir, float maxDist, float& tHit) const override {
+        // Build transform for box
+        Quat boxRotation = RotatorToQuat(rotation).normalize();
+        Quat invRot = boxRotation.conjugate();
+
+        // Transform ray into local box space
+        Vector localOrigin = RotateVectorWithQuat(rayOrigin - location, invRot);
+        Vector localDir = RotateVectorWithQuat(rayDir, invRot);
+
+        // Normalize direction (for stability)
+        localDir = localDir.getNormalized();
+
+        // Half extents
+        Vector halfSize = size * 0.5f;
+
+        float tmin = -FLT_MAX;
+        float tmax = FLT_MAX;
+
+        // X slab
+        if (fabs(localDir.X) < 1e-6f)
+        {
+            if (localOrigin.X < -halfSize.X || localOrigin.X > halfSize.X)
+                return false; // Parallel and outside
+        }
+        else
+        {
+            float tx1 = (-halfSize.X - localOrigin.X) / localDir.X;
+            float tx2 = (halfSize.X - localOrigin.X) / localDir.X;
+            if (tx1 > tx2) std::swap(tx1, tx2);
+            tmin = max(tmin, tx1);
+            tmax = min(tmax, tx2);
+        }
+
+        // Y slab
+        if (fabs(localDir.Y) < 1e-6f)
+        {
+            if (localOrigin.Y < -halfSize.Y || localOrigin.Y > halfSize.Y)
+                return false;
+        }
+        else
+        {
+            float ty1 = (-halfSize.Y - localOrigin.Y) / localDir.Y;
+            float ty2 = (halfSize.Y - localOrigin.Y) / localDir.Y;
+            if (ty1 > ty2) std::swap(ty1, ty2);
+            tmin = max(tmin, ty1);
+            tmax = min(tmax, ty2);
+        }
+
+        // Z slab
+        if (fabs(localDir.Z) < 1e-6f)
+        {
+            if (localOrigin.Z < -halfSize.Z || localOrigin.Z > halfSize.Z)
+                return false;
+        }
+        else
+        {
+            float tz1 = (-halfSize.Z - localOrigin.Z) / localDir.Z;
+            float tz2 = (halfSize.Z - localOrigin.Z) / localDir.Z;
+            if (tz1 > tz2) std::swap(tz1, tz2);
+            tmin = max(tmin, tz1);
+            tmax = min(tmax, tz2);
+        }
+
+        // Final check
+        if (tmax >= tmin && tmin <= maxDist && tmax >= 0.0f)
+        {
+            tHit = (tmin >= 0.0f) ? tmin : tmax; // pick nearest valid hit
+            return true;
+        }
+
+        return false;
+    }
+
     void Render(CanvasWrapper canvas, CameraWrapper camera) override {
         RT::Frustum frustum(canvas, camera);
         canvas.SetColor(255, 255, 255, 255);
@@ -247,6 +324,99 @@ public:
     bool IsPointInside(const Vector& point) const override {
         RT::Cylinder cylinder(location, RotatorToQuat(rotation), radius, height);
         return cylinder.IsInCylinder(point);
+    }
+
+    bool RayIntersects(const Vector& rayOrigin, const Vector& rayDir, float maxDist, float& tHit) const override {
+        // Step 1: Transform ray into local cylinder space
+        Quat cylRot = RotatorToQuat(rotation);
+        cylRot.normalize();
+        Quat invRot = cylRot.conjugate();
+
+        Vector localOrigin = RotateVectorWithQuat(rayOrigin - location, invRot);
+        Vector localDir = RotateVectorWithQuat(rayDir, invRot).getNormalized();
+
+        float halfHeight = height * 0.5f;
+        float closestT = FLT_MAX;
+        bool hit = false;
+
+        //
+        // Step 2: Side wall intersection
+        //
+        float a = localDir.X * localDir.X + localDir.Y * localDir.Y;
+        float b = 2.0f * (localOrigin.X * localDir.X + localOrigin.Y * localDir.Y);
+        float c = localOrigin.X * localOrigin.X + localOrigin.Y * localOrigin.Y - radius * radius;
+
+        if (fabs(a) > 1e-6f) // ray not parallel to cylinder axis
+        {
+            float disc = b * b - 4 * a * c;
+            if (disc >= 0.0f)
+            {
+                float sqrtDisc = sqrtf(disc);
+                float t1 = (-b - sqrtDisc) / (2 * a);
+                float t2 = (-b + sqrtDisc) / (2 * a);
+
+                if (t1 > 0.0f)
+                {
+                    float z = localOrigin.Z + t1 * localDir.Z;
+                    if (z >= -halfHeight && z <= halfHeight && t1 <= maxDist)
+                    {
+                        closestT = min(closestT, t1);
+                        hit = true;
+                    }
+                }
+                if (t2 > 0.0f)
+                {
+                    float z = localOrigin.Z + t2 * localDir.Z;
+                    if (z >= -halfHeight && z <= halfHeight && t2 <= maxDist)
+                    {
+                        closestT = min(closestT, t2);
+                        hit = true;
+                    }
+                }
+            }
+        }
+
+        //
+        // Step 3: Cap intersections (top and bottom disks)
+        //
+        if (fabs(localDir.Z) > 1e-6f)
+        {
+            // Bottom cap (z = -halfHeight)
+            float tCap = (-halfHeight - localOrigin.Z) / localDir.Z;
+            if (tCap > 0.0f && tCap <= maxDist)
+            {
+                float x = localOrigin.X + tCap * localDir.X;
+                float y = localOrigin.Y + tCap * localDir.Y;
+                if (x * x + y * y <= radius * radius)
+                {
+                    closestT = min(closestT, tCap);
+                    hit = true;
+                }
+            }
+
+            // Top cap (z = +halfHeight)
+            tCap = (halfHeight - localOrigin.Z) / localDir.Z;
+            if (tCap > 0.0f && tCap <= maxDist)
+            {
+                float x = localOrigin.X + tCap * localDir.X;
+                float y = localOrigin.Y + tCap * localDir.Y;
+                if (x * x + y * y <= radius * radius)
+                {
+                    closestT = min(closestT, tCap);
+                    hit = true;
+                }
+            }
+        }
+
+        //
+        // Step 4: return result
+        //
+        if (hit)
+        {
+            tHit = closestT;
+            return true;
+        }
+        return false;
     }
 
     void Render(CanvasWrapper canvas, CameraWrapper camera) override {

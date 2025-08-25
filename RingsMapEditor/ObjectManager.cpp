@@ -190,7 +190,7 @@ std::vector<std::shared_ptr<TriggerVolume>>& ObjectManager::GetTriggerVolumes()
 	return m_triggerVolumes;
 }
 
-std::vector<std::shared_ptr<Checkpoint>>& ObjectManager::GetTriggerCheckpoints()
+std::vector<std::shared_ptr<Checkpoint>>& ObjectManager::GetCheckpoints()
 {
 	return checkpoints;
 }

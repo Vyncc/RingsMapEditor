@@ -12,6 +12,7 @@ constexpr auto plugin_version = stringify(VERSION_MAJOR) "." stringify(VERSION_M
 #include "ObjectManager.h"
 #include "Timer.h"
 #include "BuildMode.h"
+#include "EditMode.h"
 
 enum Mode : uint8_t
 {
@@ -37,8 +38,9 @@ class RingsMapEditor: public BakkesMod::Plugin::BakkesModPlugin
     void StartEditorMode();
     void StartRaceMode();
 
-    std::shared_ptr<ObjectManager> objectManager = nullptr;
-    std::shared_ptr<BuildMode> buildMode = nullptr;
+    std::shared_ptr<ObjectManager> objectManager;
+    std::shared_ptr<BuildMode> buildMode;
+    std::shared_ptr<EditMode> editMode;
 
     Timer raceTimer;
     bool isStartingRace = false;

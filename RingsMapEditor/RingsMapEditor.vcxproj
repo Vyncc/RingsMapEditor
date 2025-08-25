@@ -92,6 +92,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BuildMode.cpp" />
+    <ClCompile Include="EditMode.cpp" />
+    <ClCompile Include="EditorSubMode.cpp" />
     <ClCompile Include="imgui\imgui.cpp" />
     <ClCompile Include="imgui\imguivariouscontrols.cpp" />
     <ClCompile Include="imgui\imgui_additions.cpp" />
@@ -148,6 +150,7 @@
     <ClInclude Include="BuildMode.h" />
     <ClInclude Include="Checkpoint.h" />
     <ClInclude Include="CustomWidgets.hpp" />
+    <ClInclude Include="EditMode.h" />
     <ClInclude Include="EditorSubMode.h" />
     <ClInclude Include="imgui\imconfig.h" />
     <ClInclude Include="imgui\imgui.h" />

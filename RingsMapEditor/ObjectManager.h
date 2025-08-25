@@ -25,7 +25,7 @@ public:
     std::vector<std::shared_ptr<Object>>& GetObjects();
     std::vector<std::shared_ptr<Mesh>>& GetMeshes();
     std::vector<std::shared_ptr<TriggerVolume>>& GetTriggerVolumes();
-    std::vector<std::shared_ptr<Checkpoint>>& GetTriggerCheckpoints();
+    std::vector<std::shared_ptr<Checkpoint>>& GetCheckpoints();
     std::vector<std::shared_ptr<Ring>>& GetRings();
     std::map<std::string, std::shared_ptr<TriggerFunction>>& GetTriggerFunctionsMap();
 

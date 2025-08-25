@@ -37,8 +37,17 @@ public:
     virtual nlohmann::json to_json() const = 0;
     virtual std::shared_ptr<Object> Clone() = 0;
 
+
+    virtual Vector GetLocation() const {
+        return location;
+    }
+
     virtual void SetLocation(const Vector& _newLocation) {
         location = _newLocation;
+    }
+
+    virtual Rotator GetRotation() const {
+        return rotation;
     }
 
     virtual void SetRotation(const Rotator& _newRotation) {

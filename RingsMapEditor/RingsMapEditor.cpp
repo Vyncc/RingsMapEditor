@@ -19,6 +19,7 @@ void RingsMapEditor::onLoad()
 	AvailableMeshes = GetAvailableMeshes();
 	objectManager = std::make_shared<ObjectManager>();
 	buildMode = std::make_shared<BuildMode>(objectManager, AvailableMeshes);
+	editMode = std::make_shared<EditMode>(objectManager);
 
 	//cvarManager->registerNotifier("my_aweseome_notifier", [&](std::vector<std::string> args) {
 	//	LOG("Hello notifier!");
@@ -30,6 +31,10 @@ void RingsMapEditor::onLoad()
 
 	_globalCvarManager->registerNotifier("ringsmapeditor_buildmode_toggle", [&](std::vector<std::string> args) {
 		buildMode->Toggle();
+		}, "", 0);
+
+	_globalCvarManager->registerNotifier("ringsmapeditor_editmode_toggle", [&](std::vector<std::string> args) {
+		editMode->Toggle();
 		}, "", 0);
 
 	gameWrapper->HookEventPost("Function TAGame.GameEvent_TA.PostBeginPlay", std::bind(&RingsMapEditor::OnGameCreated, this, std::placeholders::_1));
@@ -375,6 +380,10 @@ void RingsMapEditor::OnTick(ActorWrapper caller, void* params, std::string event
 		{
 			buildMode->OnTick(*reinterpret_cast<float*>(params));
 		}
+		else if (editMode->IsEnabled())
+		{
+			editMode->OnTick(*reinterpret_cast<float*>(params));
+		}
 	}
 	else if (IsInRaceMode())
 	{
@@ -458,6 +467,10 @@ void RingsMapEditor::RenderCanvas(CanvasWrapper canvas)
 		if (buildMode->IsEnabled())
 		{
 			buildMode->RenderCanvas(canvas);
+		}
+		else if (editMode->IsEnabled())
+		{
+			editMode->RenderCanvas(canvas);
 		}
 	}
 	else if (IsInRaceMode())
